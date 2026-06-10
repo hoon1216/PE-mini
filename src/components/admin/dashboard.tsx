@@ -39,7 +39,7 @@ export function Dashboard({ surveyId }: DashboardProps) {
     }
 
     loadData();
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(loadData, 30000);
     return () => {
       active = false;
       clearInterval(interval);
