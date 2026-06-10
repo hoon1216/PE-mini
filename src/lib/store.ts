@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { get, put } from "@vercel/blob";
+import { get, list, put, type BlobAccessType } from "@vercel/blob";
 import type { Answer, Question, Response, Section, Survey } from "./types";
 
 export interface Store {
@@ -27,6 +27,13 @@ function isBlobStorageEnabled(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+function blobAccessModes(): BlobAccessType[] {
+  const configured = process.env.BLOB_STORE_ACCESS;
+  if (configured === "public") return ["public"];
+  if (configured === "private") return ["private"];
+  return ["private", "public"];
+}
+
 function ensureFileStore(): void {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(STORE_PATH)) {
@@ -48,25 +55,71 @@ function writeFileStore(store: Store): void {
 }
 
 async function readBlobStore(): Promise<Store> {
-  try {
-    const result = await get(BLOB_PATH, { access: "private" });
-    if (!result?.stream) return emptyStore();
+  for (const access of blobAccessModes()) {
+    try {
+      const result = await get(BLOB_PATH, { access, useCache: false });
+      if (!result?.stream) continue;
 
-    const raw = await new Response(result.stream).text();
+      const raw = await new Response(result.stream).text();
+      if (!raw.trim()) continue;
+      return JSON.parse(raw) as Store;
+    } catch (error) {
+      console.warn(`[store] Blob read failed (${access}):`, error);
+    }
+  }
+
+  try {
+    const { blobs } = await list({ prefix: BLOB_PATH, limit: 1 });
+    const blob = blobs.find((item) => item.pathname === BLOB_PATH);
+    if (!blob) return emptyStore();
+
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    const response = await fetch(blob.downloadUrl, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      cache: "no-store",
+    });
+
+    if (!response.ok) return emptyStore();
+    const raw = await response.text();
     if (!raw.trim()) return emptyStore();
     return JSON.parse(raw) as Store;
-  } catch {
+  } catch (error) {
+    console.warn("[store] Blob list/fetch fallback failed:", error);
     return emptyStore();
   }
 }
 
 async function writeBlobStore(store: Store): Promise<void> {
-  await put(BLOB_PATH, JSON.stringify(store, null, 2), {
-    access: "private",
-    allowOverwrite: true,
-    contentType: "application/json",
-    addRandomSuffix: false,
-  });
+  const payload = JSON.stringify(store, null, 2);
+  let lastError: unknown;
+
+  for (const access of blobAccessModes()) {
+    try {
+      await put(BLOB_PATH, payload, {
+        access,
+        allowOverwrite: true,
+        contentType: "application/json",
+        addRandomSuffix: false,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[store] Blob write failed (${access}):`, error);
+    }
+  }
+
+  throw lastError ?? new Error("Blob write failed");
+}
+
+export function parseStoreJson(raw: string): Store {
+  const parsed = JSON.parse(raw) as Partial<Store>;
+  return {
+    surveys: Array.isArray(parsed.surveys) ? parsed.surveys : [],
+    sections: Array.isArray(parsed.sections) ? parsed.sections : [],
+    questions: Array.isArray(parsed.questions) ? parsed.questions : [],
+    responses: Array.isArray(parsed.responses) ? parsed.responses : [],
+    answers: Array.isArray(parsed.answers) ? parsed.answers : [],
+  };
 }
 
 export async function readStore(): Promise<Store> {
@@ -89,4 +142,13 @@ export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
   const result = fn(store);
   await writeStore(store);
   return result;
+}
+
+export async function replaceStore(store: Store): Promise<Store> {
+  await writeStore(store);
+  return store;
+}
+
+export function isCloudStorage(): boolean {
+  return isBlobStorageEnabled();
 }
