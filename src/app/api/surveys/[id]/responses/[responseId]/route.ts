@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { jsonNoStore } from "@/lib/api-json";
 import { deleteResponse } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -12,16 +12,16 @@ export async function DELETE(_request: Request, { params }: Params) {
     const deleted = await deleteResponse(id, responseId);
 
     if (!deleted) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "평가 데이터를 찾을 수 없습니다." },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (error) {
     console.error("DELETE /api/surveys/[id]/responses/[responseId] failed:", error);
-    return NextResponse.json(
+    return jsonNoStore(
       { error: "평가 데이터 삭제에 실패했습니다." },
       { status: 500 }
     );

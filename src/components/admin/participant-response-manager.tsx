@@ -32,8 +32,7 @@ export function ParticipantResponseManager({
 
   const loadResponses = useCallback(async () => {
     const data = await fetchJson<Response[]>(
-      `/api/surveys/${surveyId}/responses`,
-      { cache: "no-store" }
+      `/api/surveys/${surveyId}/responses`
     );
     setResponses(data);
   }, [surveyId]);
@@ -60,7 +59,6 @@ export function ParticipantResponseManager({
     try {
       await fetchJson(`/api/surveys/${surveyId}/responses/${response.id}`, {
         method: "DELETE",
-        cache: "no-store",
       });
       await loadResponses();
       setMessage(`"${label}"님의 평가 데이터를 삭제했습니다.`);
@@ -86,7 +84,7 @@ export function ParticipantResponseManager({
     try {
       const result = await fetchJson<{ deletedCount: number }>(
         `/api/surveys/${surveyId}/responses`,
-        { method: "DELETE", cache: "no-store" }
+        { method: "DELETE" }
       );
       await loadResponses();
       setMessage(`${result.deletedCount}건의 평가 데이터를 삭제했습니다.`);
