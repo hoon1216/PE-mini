@@ -1,7 +1,13 @@
 import fs from "fs";
 import path from "path";
 import { Redis } from "@upstash/redis";
-import { BlobServiceRateLimited, get, put, type BlobAccessType } from "@vercel/blob";
+import {
+  BlobServiceRateLimited,
+  get,
+  head,
+  put,
+  type BlobAccessType,
+} from "@vercel/blob";
 import seedData from "../../scripts/seed-store.json";
 import type { Answer, Question, Response, Section, Survey } from "./types";
 
@@ -100,24 +106,44 @@ function isBlobAccessMismatch(error: unknown): boolean {
   );
 }
 
-function blobPutOptions(access: BlobAccessType) {
+function blobCommandOptions(access: BlobAccessType) {
   return {
     access,
-    allowOverwrite: true as const,
-    contentType: "application/json",
-    addRandomSuffix: false as const,
     token: process.env.BLOB_READ_WRITE_TOKEN,
     storeId: process.env.BLOB_STORE_ID,
   };
 }
 
+function blobPutOptions(access: BlobAccessType) {
+  return {
+    ...blobCommandOptions(access),
+    allowOverwrite: true as const,
+    contentType: "application/json",
+    addRandomSuffix: false as const,
+    cacheControlMaxAge: 60,
+  };
+}
+
 function blobGetOptions(access: BlobAccessType) {
   return {
-    access,
+    ...blobCommandOptions(access),
     useCache: false as const,
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-    storeId: process.env.BLOB_STORE_ID,
   };
+}
+
+async function fetchBlobJson(url: string): Promise<string | null> {
+  const response = await fetch(`${url}?_=${Date.now()}`, {
+    cache: "no-store",
+    headers: {
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+
+  if (!response.ok) return null;
+
+  const raw = await response.text();
+  return raw.trim() ? raw : null;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -182,6 +208,18 @@ async function readBlobStoreOnce(): Promise<Store | null> {
 
   for (const access of blobAccessModes()) {
     try {
+      const metadata = await head(BLOB_PATH, blobCommandOptions(access));
+      const raw = await fetchBlobJson(metadata.url);
+      if (raw) {
+        return parseStoreJson(raw);
+      }
+    } catch (error) {
+      if (!isBlobAccessMismatch(error)) {
+        console.warn(`[store] Blob head/fetch read failed (${access}):`, error);
+      }
+    }
+
+    try {
       const result = await get(BLOB_PATH, blobGetOptions(access));
       if (!result || result.statusCode !== 200 || !result.stream) {
         continue;
@@ -193,12 +231,22 @@ async function readBlobStoreOnce(): Promise<Store | null> {
       return parseStoreJson(raw);
     } catch (error) {
       if (!isBlobAccessMismatch(error)) {
-        console.warn(`[store] Blob read failed (${access}):`, error);
+        console.warn(`[store] Blob get read failed (${access}):`, error);
       }
     }
   }
 
   return null;
+}
+
+async function verifyBlobPayload(url: string, payload: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const raw = await fetchBlobJson(url);
+    if (raw === payload) return true;
+    await sleep(150 * (attempt + 1));
+  }
+
+  return false;
 }
 
 async function writeBlobStoreOnce(store: Store): Promise<void> {
@@ -207,14 +255,22 @@ async function writeBlobStoreOnce(store: Store): Promise<void> {
 
   for (const access of blobAccessModes()) {
     try {
-      await put(BLOB_PATH, payload, blobPutOptions(access));
+      const result = await put(BLOB_PATH, payload, blobPutOptions(access));
+      const verified = await verifyBlobPayload(result.url, payload);
+      if (!verified) {
+        throw new Error("Blob 저장 후 데이터 확인에 실패했습니다.");
+      }
       return;
     } catch (error) {
       lastError = error;
 
       if (error instanceof BlobServiceRateLimited) {
         await sleep(error.retryAfter * 1000);
-        await put(BLOB_PATH, payload, blobPutOptions(access));
+        const result = await put(BLOB_PATH, payload, blobPutOptions(access));
+        const verified = await verifyBlobPayload(result.url, payload);
+        if (!verified) {
+          throw new Error("Blob 저장 후 데이터 확인에 실패했습니다.");
+        }
         return;
       }
 
