@@ -14,6 +14,7 @@ import type {
   Section,
   SurveyDetail,
 } from "@/lib/types";
+import { ParticipantResponseManager } from "@/components/admin/participant-response-manager";
 import { createDefaultQuestion } from "@/lib/types";
 
 interface SurveyEditorProps {
@@ -604,6 +605,8 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
           </div>
         </div>
       ))}
+
+      <ParticipantResponseManager surveyId={surveyId} />
 
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="secondary" onClick={addSection}>

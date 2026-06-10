@@ -45,6 +45,7 @@ function uniqueSlug(store: Store, title: string): string {
 function normalizeResponse(response: Response): Response {
   return {
     ...response,
+    participantName: response.participantName?.trim() || null,
     gender: response.gender ?? null,
     ageGroup: response.ageGroup ?? null,
   };
@@ -304,6 +305,7 @@ export async function submitResponse(
       id: nanoid(12),
       surveyId,
       submittedAt: now,
+      participantName: input.participantName.trim(),
       gender: input.gender,
       ageGroup: input.ageGroup,
     };
@@ -345,7 +347,34 @@ export async function listResponses(surveyId: string): Promise<Response[]> {
   const store = await readStore();
   return (store.responses as Response[])
     .filter((response) => response.surveyId === surveyId)
+    .map(normalizeResponse)
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+}
+
+export async function deleteResponse(
+  surveyId: string,
+  responseId: string
+): Promise<boolean> {
+  return mutateStore((store) => {
+    const response = (store.responses as Response[]).find(
+      (item) => item.id === responseId && item.surveyId === surveyId
+    );
+    if (!response) return false;
+
+    store.responses = (store.responses as Response[]).filter(
+      (item) => item.id !== responseId
+    );
+    store.answers = (store.answers as Answer[]).filter(
+      (answer) => answer.responseId !== responseId
+    );
+
+    const survey = (store.surveys as Survey[]).find((item) => item.id === surveyId);
+    if (survey) {
+      survey.updatedAt = new Date().toISOString();
+    }
+
+    return true;
+  });
 }
 
 export async function getAnswersForResponse(responseId: string): Promise<Answer[]> {

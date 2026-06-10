@@ -1,14 +1,27 @@
 import { NextResponse } from "next/server";
-import { submitResponse } from "@/lib/db";
+import { listResponses, submitResponse } from "@/lib/db";
 import type { SubmitResponseInput } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
 
+export async function GET(_request: Request, { params }: Params) {
+  const { id } = await params;
+  const responses = await listResponses(id);
+  return NextResponse.json(responses);
+}
+
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;
   const body = (await request.json()) as SubmitResponseInput;
+
+  if (!body.participantName?.trim()) {
+    return NextResponse.json(
+      { error: "이름을 입력해주세요." },
+      { status: 400 }
+    );
+  }
 
   if (!body.gender || !body.ageGroup) {
     return NextResponse.json(

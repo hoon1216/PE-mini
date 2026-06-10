@@ -130,11 +130,11 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
   }
 
   const draft = getOrCreateDraft(survey.id);
-  if (!draft.gender || !draft.ageGroup) {
+  if (!draft.participantName?.trim() || !draft.gender || !draft.ageGroup) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6 text-center">
         <p className="text-sm text-muted">
-          성별과 연령대를 선택한 후 평가를 시작해주세요.
+          이름, 성별, 연령대를 입력한 후 평가를 시작해주세요.
         </p>
         <Link href={`/s/${slug}`}>
           <Button type="button" className="mt-4">

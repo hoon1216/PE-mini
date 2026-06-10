@@ -48,6 +48,7 @@ export interface Response {
   id: string;
   surveyId: string;
   submittedAt: string;
+  participantName: string | null;
   gender: Gender | null;
   ageGroup: AgeGroup | null;
 }
@@ -152,6 +153,7 @@ export interface UpdateSurveyContentInput {
 }
 
 export interface SubmitResponseInput {
+  participantName: string;
   gender: Gender;
   ageGroup: AgeGroup;
   answers: { questionId: string; value: string }[];

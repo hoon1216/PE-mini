@@ -8,6 +8,7 @@ import type {
 
 export interface EvaluationDraft {
   surveyId: string;
+  participantName: string;
   gender: Gender | "";
   ageGroup: AgeGroup | "";
   completedSectionIds: string[];
@@ -22,6 +23,7 @@ function draftKey(surveyId: string): string {
 export function createEmptyDraft(surveyId: string): EvaluationDraft {
   return {
     surveyId,
+    participantName: "",
     gender: "",
     ageGroup: "",
     completedSectionIds: [],
@@ -136,6 +138,7 @@ export function buildSubmitPayload(
   }
 
   return {
+    participantName: draft.participantName.trim(),
     gender: draft.gender as Gender,
     ageGroup: draft.ageGroup as AgeGroup,
     answers,
