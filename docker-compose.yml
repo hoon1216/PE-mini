@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pe-mini-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: pepmini
+      POSTGRES_PASSWORD: pepmini
+      POSTGRES_DB: pepmini
+    volumes:
+      - pe_mini_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pepmini -d pepmini"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pe_mini_pg_data:

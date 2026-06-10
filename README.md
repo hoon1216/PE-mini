@@ -7,18 +7,38 @@ Preference Evaluation mini — 웹 기반 선호도 조사 도구
 - **관리자 (PC)**: `/` — 조사 생성, 대시보드, 평가 내용 편집
 - **참가자 (모바일)**: `/s/{slug}` — 링크 접속 후 평가 제출
 
-## 시작하기
+## 시작하기 (로컬)
+
+### 방법 A — Docker (권장)
+
+[Docker Desktop](https://www.docker.com/products/docker-desktop/) 설치 후:
 
 ```bash
 npm install
+npm run db:setup    # .env 생성 + DB 시작 + push + seed
+npm run dev
+```
+
+또는 단계별:
+
+```bash
+copy .env.example .env
+npm run db:up
 npm run db:push
 npm run db:seed
 npm run dev
 ```
 
-브라우저에서 [http://localhost:3001](http://localhost:3001) 접속
+- 로컬 DB: `postgresql://pepmini:pepmini@localhost:5433/pepmini` (포트 5433)
+- DB 중지: `npm run db:down`
 
-로컬 개발 시 `.env`에 `DATABASE_URL`이 필요합니다 (Neon 또는 로컬 PostgreSQL).
+### 방법 B — Docker 없이 (Neon 무료 DB)
+
+1. [neon.tech](https://neon.tech)에서 프로젝트 생성
+2. Connection string을 `.env`의 `DATABASE_URL`에 붙여넣기
+3. `npm run db:push && npm run db:seed && npm run dev`
+
+브라우저에서 [http://localhost:3001](http://localhost:3001) 접속
 
 ## 주요 화면
 
