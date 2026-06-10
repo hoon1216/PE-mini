@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       return jsonNoStore(
         {
           error:
-            "Vercel Blob이 연결되지 않았습니다. Storage → Blob 연결 후 다시 시도해주세요.",
+            "클라우드 저장소가 연결되지 않았습니다. Storage → Upstash Redis 또는 Blob 연결 후 Redeploy 해주세요.",
         },
         { status: 503 }
       );

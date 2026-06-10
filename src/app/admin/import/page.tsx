@@ -109,11 +109,17 @@ export default function ImportDataPage() {
 
         {blobReady === false && (
           <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            <p className="font-semibold">1단계: Vercel Blob 연결 필요</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>Vercel 대시보드 → <strong>Storage</strong> → <strong>Blob</strong> → Create</li>
-              <li>생성한 Blob을 <strong>PE-mini</strong> 프로젝트에 Connect</li>
-              <li><strong>Redeploy</strong> 후 이 페이지를 새로고침</li>
+            <p className="font-semibold">1단계: 클라우드 저장소 연결 필요</p>
+            <p className="mt-2 font-medium">권장 — Vercel KV (Redis)</p>
+            <ol className="mt-1 list-decimal space-y-1 pl-5">
+              <li>Vercel 대시보드 → <strong>Storage</strong> → <strong>Marketplace</strong></li>
+              <li><strong>Upstash Redis</strong> 추가 → <strong>PE-mini</strong> 프로젝트에 Connect</li>
+              <li><strong>Redeploy</strong> (삭제·저장 한도 문제 해결)</li>
+            </ol>
+            <p className="mt-3 font-medium">또는 Vercel Blob</p>
+            <ol className="mt-1 list-decimal space-y-1 pl-5">
+              <li>Storage → Blob → Create → PE-mini에 Connect → Redeploy</li>
+              <li>Hobby: Advanced Operations 월 2,000회 한도</li>
             </ol>
           </div>
         )}

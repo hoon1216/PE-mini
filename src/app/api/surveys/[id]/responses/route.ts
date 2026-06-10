@@ -54,9 +54,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     return jsonNoStore({ success: true, deletedCount });
   } catch (error) {
     console.error("DELETE /api/surveys/[id]/responses failed:", error);
-    return jsonNoStore(
-      { error: "전체 평가 데이터 삭제에 실패했습니다." },
-      { status: 500 }
-    );
+    const { formatStoreError } = await import("@/lib/store-errors");
+    return jsonNoStore({ error: formatStoreError(error) }, { status: 500 });
   }
 }
