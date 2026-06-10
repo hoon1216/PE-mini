@@ -130,13 +130,25 @@ async function readBlobStore(): Promise<Store> {
 async function forceReplaceBlobStore(store: Store): Promise<void> {
   const payload = JSON.stringify(store, null, 2);
   const access = blobAccessMode();
+  let lastError: unknown;
 
-  await put(BLOB_PATH, payload, {
-    access,
-    allowOverwrite: true,
-    contentType: "application/json",
-    addRandomSuffix: false,
-  });
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      await put(BLOB_PATH, payload, {
+        access,
+        allowOverwrite: true,
+        contentType: "application/json",
+        addRandomSuffix: false,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[store] Blob force write attempt ${attempt + 1} failed:`, error);
+      await sleep(80 * (attempt + 1));
+    }
+  }
+
+  throw lastError ?? new Error("Blob force write failed");
 }
 
 async function writeBlobStore(store: Store, etag: string | null): Promise<void> {
@@ -176,11 +188,14 @@ async function restoreFromSeedIfNeeded(current: Store): Promise<Store> {
 
   try {
     await forceReplaceBlobStore(seed);
-    return seed;
   } catch (error) {
-    console.error("[store] Seed restore write failed:", error);
-    return current;
+    console.error(
+      "[store] Seed restore write failed, serving seed data in-memory:",
+      error
+    );
   }
+
+  return seed;
 }
 
 export async function readStore(): Promise<Store> {
