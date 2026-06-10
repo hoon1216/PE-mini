@@ -1,11 +1,6 @@
 import fs from "fs";
 import path from "path";
-import {
-  BlobPreconditionFailedError,
-  get,
-  put,
-  type BlobAccessType,
-} from "@vercel/blob";
+import { get, put, type BlobAccessType } from "@vercel/blob";
 import seedData from "../../scripts/seed-store.json";
 import type { Answer, Question, Response, Section, Survey } from "./types";
 
@@ -51,13 +46,6 @@ function blobAccessMode(): BlobAccessType {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isPreconditionFailed(error: unknown): boolean {
-  return (
-    error instanceof BlobPreconditionFailedError ||
-    (error instanceof Error && error.name === "BlobPreconditionFailedError")
-  );
 }
 
 function ensureFileStore(): void {
@@ -151,19 +139,6 @@ async function forceReplaceBlobStore(store: Store): Promise<void> {
   throw lastError ?? new Error("Blob force write failed");
 }
 
-async function writeBlobStore(store: Store, etag: string | null): Promise<void> {
-  const payload = JSON.stringify(store, null, 2);
-  const access = blobAccessMode();
-
-  await put(BLOB_PATH, payload, {
-    access,
-    allowOverwrite: true,
-    contentType: "application/json",
-    addRandomSuffix: false,
-    ...(etag ? { ifMatch: etag } : {}),
-  });
-}
-
 export function parseStoreJson(raw: string): Store {
   const parsed = JSON.parse(raw) as Partial<Store>;
   return {
@@ -247,23 +222,23 @@ export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
     return result;
   }
 
+  let lastError: unknown;
+
   for (let attempt = 0; attempt < MUTATE_MAX_RETRIES; attempt++) {
-    const { store, etag } = await readBlobStoreWithEtag();
+    const store = await readStore();
     const result = fn(store);
 
     try {
-      await writeBlobStore(store, etag);
+      await forceReplaceBlobStore(store);
       return result;
     } catch (error) {
-      if (isPreconditionFailed(error) && attempt < MUTATE_MAX_RETRIES - 1) {
-        await sleep(40 * (attempt + 1));
-        continue;
-      }
-      throw error;
+      lastError = error;
+      console.warn(`[store] mutateStore attempt ${attempt + 1} failed:`, error);
+      await sleep(80 * (attempt + 1));
     }
   }
 
-  throw new Error("Store mutation failed after retries");
+  throw lastError ?? new Error("Store mutation failed after retries");
 }
 
 export async function replaceStore(store: Store): Promise<Store> {
