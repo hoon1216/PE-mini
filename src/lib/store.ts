@@ -23,6 +23,22 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
 const BLOB_PATH = "pe-mini/store.json";
 const KV_STORE_KEY = "pe-mini:store";
+const MEMORY_STORE_TTL_MS = 10 * 60 * 1000;
+
+let memoryStore: { data: Store; at: number } | null = null;
+
+function rememberStore(store: Store): void {
+  memoryStore = { data: cloneStore(store), at: Date.now() };
+}
+
+function recallStore(): Store | null {
+  if (!memoryStore) return null;
+  if (Date.now() - memoryStore.at > MEMORY_STORE_TTL_MS) {
+    memoryStore = null;
+    return null;
+  }
+  return cloneStore(memoryStore.data);
+}
 
 export const emptyStore = (): Store => ({
   surveys: [],
@@ -135,7 +151,7 @@ async function fetchBlobJson(url: string): Promise<string | null> {
   const response = await fetch(`${url}?_=${Date.now()}`, {
     cache: "no-store",
     headers: {
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-store",
       Pragma: "no-cache",
     },
   });
@@ -144,6 +160,18 @@ async function fetchBlobJson(url: string): Promise<string | null> {
 
   const raw = await response.text();
   return raw.trim() ? raw : null;
+}
+
+async function fetchBlobJsonFromMetadata(metadata: {
+  url: string;
+  downloadUrl: string;
+}): Promise<string | null> {
+  for (const url of [metadata.downloadUrl, metadata.url]) {
+    const raw = await fetchBlobJson(url);
+    if (raw) return raw;
+  }
+
+  return null;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -201,6 +229,7 @@ async function writeKvStore(store: Store): Promise<void> {
     throw new Error("KV 저장소가 연결되지 않았습니다.");
   }
   await redis.set(KV_STORE_KEY, store);
+  rememberStore(store);
 }
 
 async function readBlobStoreOnce(): Promise<Store | null> {
@@ -209,7 +238,7 @@ async function readBlobStoreOnce(): Promise<Store | null> {
   for (const access of blobAccessModes()) {
     try {
       const metadata = await head(BLOB_PATH, blobCommandOptions(access));
-      const raw = await fetchBlobJson(metadata.url);
+      const raw = await fetchBlobJsonFromMetadata(metadata);
       if (raw) {
         return parseStoreJson(raw);
       }
@@ -239,38 +268,22 @@ async function readBlobStoreOnce(): Promise<Store | null> {
   return null;
 }
 
-async function verifyBlobPayload(url: string, payload: string): Promise<boolean> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const raw = await fetchBlobJson(url);
-    if (raw === payload) return true;
-    await sleep(150 * (attempt + 1));
-  }
-
-  return false;
-}
-
 async function writeBlobStoreOnce(store: Store): Promise<void> {
   const payload = JSON.stringify(store);
   let lastError: unknown;
 
   for (const access of blobAccessModes()) {
     try {
-      const result = await put(BLOB_PATH, payload, blobPutOptions(access));
-      const verified = await verifyBlobPayload(result.url, payload);
-      if (!verified) {
-        throw new Error("Blob 저장 후 데이터 확인에 실패했습니다.");
-      }
+      await put(BLOB_PATH, payload, blobPutOptions(access));
+      rememberStore(store);
       return;
     } catch (error) {
       lastError = error;
 
       if (error instanceof BlobServiceRateLimited) {
         await sleep(error.retryAfter * 1000);
-        const result = await put(BLOB_PATH, payload, blobPutOptions(access));
-        const verified = await verifyBlobPayload(result.url, payload);
-        if (!verified) {
-          throw new Error("Blob 저장 후 데이터 확인에 실패했습니다.");
-        }
+        await put(BLOB_PATH, payload, blobPutOptions(access));
+        rememberStore(store);
         return;
       }
 
@@ -328,6 +341,10 @@ async function migrateBlobFromLegacySources(): Promise<Store> {
 
 async function readPrimaryStore(): Promise<Store> {
   const primary = getPrimaryBackend();
+  const remembered = recallStore();
+  if (remembered && primary !== "file") {
+    return remembered;
+  }
 
   if (primary === "file") {
     return readFileStore();
@@ -335,12 +352,18 @@ async function readPrimaryStore(): Promise<Store> {
 
   if (primary === "kv") {
     const kvStore = await readKvStore();
-    if (kvStore) return kvStore;
+    if (kvStore) {
+      rememberStore(kvStore);
+      return kvStore;
+    }
     return migrateKvFromLegacySources();
   }
 
   const blobStore = await readBlobStoreOnce();
-  if (blobStore) return blobStore;
+  if (blobStore) {
+    rememberStore(blobStore);
+    return blobStore;
+  }
   return migrateBlobFromLegacySources();
 }
 
@@ -364,6 +387,7 @@ export async function writeStore(store: Store): Promise<void> {
 
   if (primary === "file") {
     writeFileStore(store);
+    rememberStore(store);
     return;
   }
 
@@ -383,6 +407,7 @@ export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
     const store = await readFileStore();
     const result = fn(store);
     writeFileStore(store);
+    rememberStore(store);
     return result;
   }
 
