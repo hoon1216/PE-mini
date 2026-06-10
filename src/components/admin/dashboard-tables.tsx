@@ -265,7 +265,7 @@ export function RankingSectionTable({
             </th>
             {ageGroups.length > 0 && (
               <th colSpan={criteriaColSpan} className={thClass}>
-                1순위 선택 기준
+                연령대별 1순위 선택 비교
               </th>
             )}
           </tr>
