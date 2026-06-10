@@ -6,6 +6,7 @@ import {
   put,
   type BlobAccessType,
 } from "@vercel/blob";
+import seedData from "../../scripts/seed-store.json";
 import type { Answer, Question, Response, Section, Survey } from "./types";
 
 export interface Store {
@@ -18,7 +19,6 @@ export interface Store {
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
-const SEED_PATH = path.join(process.cwd(), "scripts", "seed-store.json");
 const BLOB_PATH = "pe-mini/store.json";
 const MUTATE_MAX_RETRIES = 8;
 const READ_RETRY_ATTEMPTS = 4;
@@ -68,14 +68,7 @@ function ensureFileStore(): void {
 }
 
 function readSeedStore(): Store {
-  try {
-    if (!fs.existsSync(SEED_PATH)) return emptyStore();
-    const raw = fs.readFileSync(SEED_PATH, "utf8");
-    return parseStoreJson(raw);
-  } catch (error) {
-    console.warn("[store] Seed store read failed:", error);
-    return emptyStore();
-  }
+  return parseStoreJson(JSON.stringify(seedData));
 }
 
 async function readFileStore(): Promise<Store> {
@@ -113,8 +106,13 @@ async function readBlobStoreWithEtag(): Promise<BlobStoreSnapshot> {
       }
 
       const raw = await new Response(result.stream).text();
-      const store = raw.trim() ? parseStoreJson(raw) : emptyStore();
-      return { store, etag: result.blob.etag };
+      try {
+        const store = raw.trim() ? parseStoreJson(raw) : emptyStore();
+        return { store, etag: result.blob.etag };
+      } catch (parseError) {
+        console.warn("[store] Blob JSON parse failed:", parseError);
+        return { store: emptyStore(), etag: result.blob.etag };
+      }
     } catch (error) {
       console.warn(`[store] Blob read attempt ${attempt + 1} failed:`, error);
       await sleep(40 * (attempt + 1));
@@ -168,14 +166,21 @@ export function parseStoreJson(raw: string): Store {
 async function restoreFromSeedIfNeeded(current: Store): Promise<Store> {
   const seed = readSeedStore();
   if (seed.surveys.length === 0) {
+    console.warn("[store] No seed backup available for restore");
     return current;
   }
 
   console.warn(
     `[store] Restoring ${seed.surveys.length} survey(s) from seed backup`
   );
-  await forceReplaceBlobStore(seed);
-  return seed;
+
+  try {
+    await forceReplaceBlobStore(seed);
+    return seed;
+  } catch (error) {
+    console.error("[store] Seed restore write failed:", error);
+    return current;
+  }
 }
 
 export async function readStore(): Promise<Store> {
@@ -183,12 +188,17 @@ export async function readStore(): Promise<Store> {
     return readFileStore();
   }
 
-  const blobStore = await readBlobStore();
-  if (blobStore.surveys.length > 0) {
-    return blobStore;
-  }
+  try {
+    const blobStore = await readBlobStore();
+    if (blobStore.surveys.length > 0) {
+      return blobStore;
+    }
 
-  return restoreFromSeedIfNeeded(blobStore);
+    return await restoreFromSeedIfNeeded(blobStore);
+  } catch (error) {
+    console.error("[store] Blob read failed, attempting seed restore:", error);
+    return restoreFromSeedIfNeeded(emptyStore());
+  }
 }
 
 export async function restoreStoreFromSeed(): Promise<Store> {
