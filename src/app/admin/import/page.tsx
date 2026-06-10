@@ -19,6 +19,42 @@ export default function ImportDataPage() {
       .catch(() => setBlobReady(null));
   }, []);
 
+  async function handleRestoreSeed() {
+    if (!key.trim()) {
+      setError("복구 키를 입력해주세요.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/admin/restore-seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        surveyCount?: number;
+        responseCount?: number;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "복구에 실패했습니다.");
+      }
+
+      setMessage(
+        `백업 복구 완료: 조사 ${data.surveyCount ?? 0}개, 응답 ${data.responseCount ?? 0}개`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "복구에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!file) {
@@ -122,6 +158,16 @@ export default function ImportDataPage() {
 
           <Button type="submit" className="w-full py-3" disabled={loading || blobReady === false}>
             {loading ? "업로드 중..." : "데이터 가져오기"}
+          </Button>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full py-3"
+            disabled={loading || blobReady === false}
+            onClick={handleRestoreSeed}
+          >
+            {loading ? "복구 중..." : "백업 데이터로 복구 (시드)"}
           </Button>
         </form>
       </main>

@@ -1,0 +1,660 @@
+{
+  "surveys": [
+    {
+      "id": "L-VTjhgoWqKX",
+      "title": "Xboom 미니 컬러 선호도 조사",
+      "slug": "bt-스피커-컬러-조합-선호도-조사-4",
+      "description": "",
+      "createdAt": "2026-06-10T00:56:57.698Z",
+      "updatedAt": "2026-06-10T04:38:09.641Z"
+    }
+  ],
+  "sections": [
+    {
+      "id": "G73rnlNLovBY",
+      "surveyId": "L-VTjhgoWqKX",
+      "title": "블랙",
+      "description": "Xboom 그레이 바디에 12종의 컬러 그릴을 올려서 컬러 매칭의 어울림 정도를 체크해 주세요(스피커그릴+로고형)",
+      "sortOrder": 0
+    },
+    {
+      "id": "imq0z19NytSi",
+      "surveyId": "L-VTjhgoWqKX",
+      "title": "그레이",
+      "description": "Xboom 그레이 바디에 12종의 컬러 그릴을 올려서 컬러 매칭의 어울림 정도를 체크해 주세요(스피커그릴+로고형)",
+      "sortOrder": 1
+    },
+    {
+      "id": "cqK33FDcY2YG",
+      "surveyId": "L-VTjhgoWqKX",
+      "title": "가장 선호하는 그릴 컬러 조합 순위 선정",
+      "description": "Xboom 바디와 상관없이 12종의 컬러 조합 중 가장 선호하는 조합의 1,2,3순위를 선정해 주세요",
+      "sortOrder": 2
+    }
+  ],
+  "questions": [
+    {
+      "id": "XnNuRyBpUsDB",
+      "sectionId": "G73rnlNLovBY",
+      "title": "1.젠틀그린+웜그레이",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "믹스 그룹",
+        "combination": "1.젠틀그린+웜그레이"
+      },
+      "sortOrder": 0
+    },
+    {
+      "id": "jXukkC4T012R",
+      "sectionId": "G73rnlNLovBY",
+      "title": "2.프렌치블루+라임 옐로우",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "믹스 그룹",
+        "combination": "2.프렌치블루+라임 옐로우"
+      },
+      "sortOrder": 1
+    },
+    {
+      "id": "7NLOgRwm152e",
+      "sectionId": "G73rnlNLovBY",
+      "title": "3.블러시핑크+웜그레이",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "믹스 그룹",
+        "combination": "3.블러시핑크+웜그레이"
+      },
+      "sortOrder": 2
+    },
+    {
+      "id": "QlkGDaa49JAR",
+      "sectionId": "G73rnlNLovBY",
+      "title": "4. 젠틀그린+레드",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "4. 젠틀그린+레드"
+      },
+      "sortOrder": 3
+    },
+    {
+      "id": "1Ah2Pp3pgCm9",
+      "sectionId": "G73rnlNLovBY",
+      "title": "5.프렌치블루+레드",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "5.프렌치블루+레드"
+      },
+      "sortOrder": 4
+    },
+    {
+      "id": "O2BUIXWFIxg_",
+      "sectionId": "G73rnlNLovBY",
+      "title": "6.블러시핑크+레드",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "6.블러시핑크+레드"
+      },
+      "sortOrder": 5
+    },
+    {
+      "id": "zHJFpH8EeqK9",
+      "sectionId": "G73rnlNLovBY",
+      "title": "7.라임옐로우+래드",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "7.라임옐로우+래드"
+      },
+      "sortOrder": 6
+    },
+    {
+      "id": "wObzT5AqHbhU",
+      "sectionId": "G73rnlNLovBY",
+      "title": "8.레드+블러시핑크",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "8.레드+블러시핑크"
+      },
+      "sortOrder": 7
+    },
+    {
+      "id": "lkAasakQ6CwC",
+      "sectionId": "G73rnlNLovBY",
+      "title": "9.젠틀그린 톤온톤",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "톤운톤 그룹",
+        "combination": "9.젠틀그린 톤온톤"
+      },
+      "sortOrder": 8
+    },
+    {
+      "id": "9OW-0NL0cU-_",
+      "sectionId": "G73rnlNLovBY",
+      "title": "10프렌치블 톤온톤",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "톤운톤 그룹",
+        "combination": "10프렌치블 톤온톤"
+      },
+      "sortOrder": 9
+    },
+    {
+      "id": "rdqFoOBrpla8",
+      "sectionId": "G73rnlNLovBY",
+      "title": "11블러시핑크 톤온톤",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "톤운톤 그룹",
+        "combination": "11블러시핑크 톤온톤"
+      },
+      "sortOrder": 10
+    },
+    {
+      "id": "LWB-i0W7PeI-",
+      "sectionId": "G73rnlNLovBY",
+      "title": "12.라임예로우 톤온톤",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "톤운톤 그룹",
+        "combination": "12.라임예로우 톤온톤"
+      },
+      "sortOrder": 11
+    },
+    {
+      "id": "bpykZagZ-mx6",
+      "sectionId": "G73rnlNLovBY",
+      "title": "Xboom 블랙바디에 어울리는 컬러그룹 순위 선정",
+      "description": null,
+      "type": "ranking",
+      "config": {
+        "combinations": [
+          "믹스그룹",
+          "레드그룹",
+          "톤온톤그룹"
+        ]
+      },
+      "sortOrder": 12
+    },
+    {
+      "id": "C4U5A4vRvtAT",
+      "sectionId": "imq0z19NytSi",
+      "title": "1.젠틀그린+웜그레이",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "믹스 그룹",
+        "combination": "1.젠틀그린+웜그레이"
+      },
+      "sortOrder": 0
+    },
+    {
+      "id": "OFL5QsWJGdi4",
+      "sectionId": "imq0z19NytSi",
+      "title": "2.프렌치블루+라임 옐로우",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "믹스 그룹",
+        "combination": "2.프렌치블루+라임 옐로우"
+      },
+      "sortOrder": 1
+    },
+    {
+      "id": "RFIo5AnNTXQs",
+      "sectionId": "imq0z19NytSi",
+      "title": "3.블러시핑크+웜그레이",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "믹스 그룹",
+        "combination": "3.블러시핑크+웜그레이"
+      },
+      "sortOrder": 2
+    },
+    {
+      "id": "1Ivj3YsXoj5-",
+      "sectionId": "imq0z19NytSi",
+      "title": "4. 젠틀그린+레드",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "4. 젠틀그린+레드"
+      },
+      "sortOrder": 3
+    },
+    {
+      "id": "aDTSnX8zgLrP",
+      "sectionId": "imq0z19NytSi",
+      "title": "5.프렌치블루+레드",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "5.프렌치블루+레드"
+      },
+      "sortOrder": 4
+    },
+    {
+      "id": "MZ1b0oFbPdJa",
+      "sectionId": "imq0z19NytSi",
+      "title": "6.블러시핑크+레드",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "6.블러시핑크+레드"
+      },
+      "sortOrder": 5
+    },
+    {
+      "id": "u14R4WjlbH_5",
+      "sectionId": "imq0z19NytSi",
+      "title": "7.라임옐로우+래드",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "7.라임옐로우+래드"
+      },
+      "sortOrder": 6
+    },
+    {
+      "id": "C34O3d8XuDIc",
+      "sectionId": "imq0z19NytSi",
+      "title": "8.레드+블러시핑크",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "레드 그룹",
+        "combination": "8.레드+블러시핑크"
+      },
+      "sortOrder": 7
+    },
+    {
+      "id": "t-3wpykNmKUv",
+      "sectionId": "imq0z19NytSi",
+      "title": "9.젠틀그린 톤온톤",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "톤운톤 그룹",
+        "combination": "9.젠틀그린 톤온톤"
+      },
+      "sortOrder": 8
+    },
+    {
+      "id": "zy6Dxtz7NGUa",
+      "sectionId": "imq0z19NytSi",
+      "title": "10프렌치블 톤온톤",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "톤운톤 그룹",
+        "combination": "10프렌치블 톤온톤"
+      },
+      "sortOrder": 9
+    },
+    {
+      "id": "0r9ah7gGzkPJ",
+      "sectionId": "imq0z19NytSi",
+      "title": "11블러시핑크 톤온톤",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "톤운톤 그룹",
+        "combination": "11블러시핑크 톤온톤"
+      },
+      "sortOrder": 10
+    },
+    {
+      "id": "5xqkzLVrawPL",
+      "sectionId": "imq0z19NytSi",
+      "title": "12.라임예로우 톤온톤",
+      "description": null,
+      "type": "score",
+      "config": {
+        "category": "톤운톤 그룹",
+        "combination": "12.라임예로우 톤온톤"
+      },
+      "sortOrder": 11
+    },
+    {
+      "id": "5RZrlejEjlkL",
+      "sectionId": "imq0z19NytSi",
+      "title": "Xboom 그레이바디에 어울리는 컬러그룹 순위 선정",
+      "description": null,
+      "type": "ranking",
+      "config": {
+        "combinations": [
+          "믹스그룹",
+          "레드그룹",
+          "톤온톤그룹"
+        ]
+      },
+      "sortOrder": 12
+    },
+    {
+      "id": "oh6Yz8v29dXH",
+      "sectionId": "cqK33FDcY2YG",
+      "title": "순위 문항",
+      "description": null,
+      "type": "ranking",
+      "config": {
+        "combinations": [
+          "1.젠틀그린+웜그레이",
+          "2.프렌티블루+라임옐로우",
+          "3.블러시핑크+웜그레이",
+          "4.젠틀그린+레드",
+          "5.프렌치블루+레드",
+          "6.블러시핑크+레드",
+          "7.라임엘로우+레드",
+          "8.레드+블러시핑크",
+          "9.젠틀그린 톤온톤",
+          "10.프렌치블루 톤온톤",
+          "11.블러시핑크 톤온톤",
+          "12.라임예로우 톤온톤"
+        ]
+      },
+      "sortOrder": 0
+    }
+  ],
+  "responses": [
+    {
+      "id": "WnDA0TmSRhem",
+      "surveyId": "L-VTjhgoWqKX",
+      "submittedAt": "2026-06-10T01:36:36.847Z",
+      "gender": "male",
+      "ageGroup": "50s"
+    },
+    {
+      "id": "ND2iOtzxEOis",
+      "surveyId": "L-VTjhgoWqKX",
+      "submittedAt": "2026-06-10T01:37:05.548Z",
+      "gender": "female",
+      "ageGroup": "50s"
+    },
+    {
+      "id": "ZrP1Y-fEURTq",
+      "surveyId": "L-VTjhgoWqKX",
+      "submittedAt": "2026-06-10T01:37:17.736Z",
+      "gender": "male",
+      "ageGroup": "20s"
+    },
+    {
+      "id": "Ej7O_i2w0cis",
+      "surveyId": "L-VTjhgoWqKX",
+      "submittedAt": "2026-06-10T01:37:28.918Z",
+      "gender": "male",
+      "ageGroup": "40s"
+    },
+    {
+      "id": "FXyzHvOInnMs",
+      "surveyId": "L-VTjhgoWqKX",
+      "submittedAt": "2026-06-10T01:37:39.374Z",
+      "gender": "female",
+      "ageGroup": "40s"
+    },
+    {
+      "id": "dj-y0W5C8vjE",
+      "surveyId": "L-VTjhgoWqKX",
+      "submittedAt": "2026-06-10T01:37:48.786Z",
+      "gender": "male",
+      "ageGroup": "20s"
+    },
+    {
+      "id": "6voQ13PQKjl8",
+      "surveyId": "L-VTjhgoWqKX",
+      "submittedAt": "2026-06-10T04:29:11.214Z",
+      "gender": "male",
+      "ageGroup": "50s"
+    }
+  ],
+  "answers": [
+    {
+      "id": "3OTCfZDCJB3S",
+      "responseId": "WnDA0TmSRhem",
+      "questionId": "item-1",
+      "value": "1"
+    },
+    {
+      "id": "0ROze9Loo8RY",
+      "responseId": "WnDA0TmSRhem",
+      "questionId": "item-2",
+      "value": "2"
+    },
+    {
+      "id": "P4r4HMKbVIMK",
+      "responseId": "ND2iOtzxEOis",
+      "questionId": "item-1",
+      "value": "4"
+    },
+    {
+      "id": "ybWfwZxsASL3",
+      "responseId": "ND2iOtzxEOis",
+      "questionId": "item-2",
+      "value": "2"
+    },
+    {
+      "id": "I_GC8yJcesDz",
+      "responseId": "ZrP1Y-fEURTq",
+      "questionId": "item-1",
+      "value": "6"
+    },
+    {
+      "id": "sFmJie0bj6UY",
+      "responseId": "ZrP1Y-fEURTq",
+      "questionId": "item-2",
+      "value": "2"
+    },
+    {
+      "id": "leGOf2u4YFCF",
+      "responseId": "Ej7O_i2w0cis",
+      "questionId": "item-1",
+      "value": "4"
+    },
+    {
+      "id": "ZM2ZJ_YWTpco",
+      "responseId": "Ej7O_i2w0cis",
+      "questionId": "item-2",
+      "value": "2"
+    },
+    {
+      "id": "VvXdBftUSCRZ",
+      "responseId": "FXyzHvOInnMs",
+      "questionId": "item-1",
+      "value": "2"
+    },
+    {
+      "id": "oaEjLjA8Pq3m",
+      "responseId": "FXyzHvOInnMs",
+      "questionId": "item-2",
+      "value": "4"
+    },
+    {
+      "id": "ojarCAQ_JtbH",
+      "responseId": "dj-y0W5C8vjE",
+      "questionId": "item-1",
+      "value": "4"
+    },
+    {
+      "id": "vaZVWlYA9qMR",
+      "responseId": "dj-y0W5C8vjE",
+      "questionId": "item-2",
+      "value": "2"
+    },
+    {
+      "id": "FfkyClvxV5MG",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "XnNuRyBpUsDB",
+      "value": "4"
+    },
+    {
+      "id": "bhCE0puyCWN0",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "jXukkC4T012R",
+      "value": "2"
+    },
+    {
+      "id": "Yel0Kr7IBiqO",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "7NLOgRwm152e",
+      "value": "5"
+    },
+    {
+      "id": "Vxvp2LELQu3W",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "QlkGDaa49JAR",
+      "value": "4"
+    },
+    {
+      "id": "rIe7-9cvVetO",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "1Ah2Pp3pgCm9",
+      "value": "4"
+    },
+    {
+      "id": "2hTkG2Obp53G",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "O2BUIXWFIxg_",
+      "value": "5"
+    },
+    {
+      "id": "h0u5xaLYl3i6",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "zHJFpH8EeqK9",
+      "value": "4"
+    },
+    {
+      "id": "uGEcYFpDJLe6",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "wObzT5AqHbhU",
+      "value": "5"
+    },
+    {
+      "id": "XVhc2rKdo_7B",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "lkAasakQ6CwC",
+      "value": "4"
+    },
+    {
+      "id": "TBbw5eQ293rI",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "9OW-0NL0cU-_",
+      "value": "2"
+    },
+    {
+      "id": "v1E8sKEjhkUK",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "rdqFoOBrpla8",
+      "value": "4"
+    },
+    {
+      "id": "bKaPpU09mP55",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "LWB-i0W7PeI-",
+      "value": "5"
+    },
+    {
+      "id": "prwia3VmSu9w",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "bpykZagZ-mx6",
+      "value": "{\"rank1\":\"레드그룹\",\"rank2\":\"톤온톤그룹\"}"
+    },
+    {
+      "id": "t7dyIwAUeXxg",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "C4U5A4vRvtAT",
+      "value": "4"
+    },
+    {
+      "id": "jvYQHOei5gMm",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "OFL5QsWJGdi4",
+      "value": "4"
+    },
+    {
+      "id": "mB4S2WfL0mlf",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "RFIo5AnNTXQs",
+      "value": "5"
+    },
+    {
+      "id": "vM9PdFGJZNiY",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "1Ivj3YsXoj5-",
+      "value": "4"
+    },
+    {
+      "id": "KZMluoaWEkgT",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "aDTSnX8zgLrP",
+      "value": "1"
+    },
+    {
+      "id": "Qari_UTCrph4",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "MZ1b0oFbPdJa",
+      "value": "2"
+    },
+    {
+      "id": "Dtg2fOOaxfKm",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "u14R4WjlbH_5",
+      "value": "2"
+    },
+    {
+      "id": "mgqkTdA6E9Fs",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "C34O3d8XuDIc",
+      "value": "4"
+    },
+    {
+      "id": "XpmTiUR9W5Tb",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "t-3wpykNmKUv",
+      "value": "2"
+    },
+    {
+      "id": "F6wkBhxBcshi",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "zy6Dxtz7NGUa",
+      "value": "2"
+    },
+    {
+      "id": "8rsSZeEY3Ty_",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "0r9ah7gGzkPJ",
+      "value": "2"
+    },
+    {
+      "id": "aR8tfV0npyug",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "5xqkzLVrawPL",
+      "value": "4"
+    },
+    {
+      "id": "_QICM4RtMUW9",
+      "responseId": "6voQ13PQKjl8",
+      "questionId": "5RZrlejEjlkL",
+      "value": "{\"rank1\":\"믹스그룹\",\"rank2\":\"레드그룹\"}"
+    }
+  ]
+}

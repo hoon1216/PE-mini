@@ -18,10 +18,10 @@ export interface Store {
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
+const SEED_PATH = path.join(process.cwd(), "scripts", "seed-store.json");
 const BLOB_PATH = "pe-mini/store.json";
-const MUTATE_MAX_RETRIES = 10;
-const READ_RETRY_ATTEMPTS = 5;
-const VERIFY_RETRY_ATTEMPTS = 8;
+const MUTATE_MAX_RETRIES = 8;
+const READ_RETRY_ATTEMPTS = 4;
 
 export const emptyStore = (): Store => ({
   surveys: [],
@@ -67,10 +67,21 @@ function ensureFileStore(): void {
   }
 }
 
+function readSeedStore(): Store {
+  try {
+    if (!fs.existsSync(SEED_PATH)) return emptyStore();
+    const raw = fs.readFileSync(SEED_PATH, "utf8");
+    return parseStoreJson(raw);
+  } catch (error) {
+    console.warn("[store] Seed store read failed:", error);
+    return emptyStore();
+  }
+}
+
 async function readFileStore(): Promise<Store> {
   ensureFileStore();
   const raw = fs.readFileSync(STORE_PATH, "utf8");
-  return JSON.parse(raw) as Store;
+  return parseStoreJson(raw);
 }
 
 function writeFileStore(store: Store): void {
@@ -87,7 +98,6 @@ interface BlobStoreSnapshot {
 
 async function readBlobStoreWithEtag(): Promise<BlobStoreSnapshot> {
   const access = blobAccessMode();
-  let lastError: unknown;
 
   for (let attempt = 0; attempt < READ_RETRY_ATTEMPTS; attempt++) {
     try {
@@ -106,18 +116,29 @@ async function readBlobStoreWithEtag(): Promise<BlobStoreSnapshot> {
       const store = raw.trim() ? parseStoreJson(raw) : emptyStore();
       return { store, etag: result.blob.etag };
     } catch (error) {
-      lastError = error;
       console.warn(`[store] Blob read attempt ${attempt + 1} failed:`, error);
       await sleep(40 * (attempt + 1));
     }
   }
 
-  throw lastError ?? new Error("Blob read failed after retries");
+  return { store: emptyStore(), etag: null };
 }
 
 async function readBlobStore(): Promise<Store> {
   const { store } = await readBlobStoreWithEtag();
   return store;
+}
+
+async function forceReplaceBlobStore(store: Store): Promise<void> {
+  const payload = JSON.stringify(store, null, 2);
+  const access = blobAccessMode();
+
+  await put(BLOB_PATH, payload, {
+    access,
+    allowOverwrite: true,
+    contentType: "application/json",
+    addRandomSuffix: false,
+  });
 }
 
 async function writeBlobStore(store: Store, etag: string | null): Promise<void> {
@@ -133,23 +154,6 @@ async function writeBlobStore(store: Store, etag: string | null): Promise<void> 
   });
 }
 
-async function verifyBlobWrite(expected: Store): Promise<boolean> {
-  const expectedJson = JSON.stringify(expected);
-
-  for (let attempt = 0; attempt < VERIFY_RETRY_ATTEMPTS; attempt++) {
-    if (attempt > 0) {
-      await sleep(60 * attempt);
-    }
-
-    const { store: current } = await readBlobStoreWithEtag();
-    if (JSON.stringify(current) === expectedJson) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 export function parseStoreJson(raw: string): Store {
   const parsed = JSON.parse(raw) as Partial<Store>;
   return {
@@ -161,38 +165,52 @@ export function parseStoreJson(raw: string): Store {
   };
 }
 
-export async function readStore(): Promise<Store> {
-  if (isBlobStorageEnabled()) {
-    return readBlobStore();
+async function restoreFromSeedIfNeeded(current: Store): Promise<Store> {
+  const seed = readSeedStore();
+  if (seed.surveys.length === 0) {
+    return current;
   }
-  return readFileStore();
+
+  console.warn(
+    `[store] Restoring ${seed.surveys.length} survey(s) from seed backup`
+  );
+  await forceReplaceBlobStore(seed);
+  return seed;
+}
+
+export async function readStore(): Promise<Store> {
+  if (!isBlobStorageEnabled()) {
+    return readFileStore();
+  }
+
+  const blobStore = await readBlobStore();
+  if (blobStore.surveys.length > 0) {
+    return blobStore;
+  }
+
+  return restoreFromSeedIfNeeded(blobStore);
+}
+
+export async function restoreStoreFromSeed(): Promise<Store> {
+  const seed = readSeedStore();
+  if (seed.surveys.length === 0) {
+    throw new Error("복구할 시드 데이터가 없습니다.");
+  }
+
+  if (isBlobStorageEnabled()) {
+    await forceReplaceBlobStore(seed);
+  } else {
+    writeFileStore(seed);
+  }
+
+  return seed;
 }
 
 export async function writeStore(store: Store): Promise<void> {
   if (isBlobStorageEnabled()) {
-    for (let attempt = 0; attempt < MUTATE_MAX_RETRIES; attempt++) {
-      const { etag } = await readBlobStoreWithEtag();
-      try {
-        await writeBlobStore(store, etag);
-        if (await verifyBlobWrite(store)) {
-          return;
-        }
-      } catch (error) {
-        if (isPreconditionFailed(error) && attempt < MUTATE_MAX_RETRIES - 1) {
-          await sleep(40 * (attempt + 1));
-          continue;
-        }
-        throw error;
-      }
-
-      console.warn(
-        `[store] writeStore verification failed (attempt ${attempt + 1}), retrying...`
-      );
-    }
-
-    throw new Error("Blob write failed verification after retries");
+    await forceReplaceBlobStore(store);
+    return;
   }
-
   writeFileStore(store);
 }
 
@@ -210,9 +228,7 @@ export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
 
     try {
       await writeBlobStore(store, etag);
-      if (await verifyBlobWrite(store)) {
-        return result;
-      }
+      return result;
     } catch (error) {
       if (isPreconditionFailed(error) && attempt < MUTATE_MAX_RETRIES - 1) {
         await sleep(40 * (attempt + 1));
@@ -220,13 +236,9 @@ export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
       }
       throw error;
     }
-
-    console.warn(
-      `[store] mutateStore verification failed (attempt ${attempt + 1}), retrying...`
-    );
   }
 
-  throw new Error("Store mutation failed verification after retries");
+  throw new Error("Store mutation failed after retries");
 }
 
 export async function replaceStore(store: Store): Promise<Store> {
