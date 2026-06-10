@@ -356,24 +356,48 @@ export async function deleteResponse(
   responseId: string
 ): Promise<boolean> {
   return mutateStore((store) => {
-    const response = (store.responses as Response[]).find(
+    const exists = store.responses.some(
       (item) => item.id === responseId && item.surveyId === surveyId
     );
-    if (!response) return false;
+    if (!exists) return false;
 
-    store.responses = (store.responses as Response[]).filter(
-      (item) => item.id !== responseId
-    );
-    store.answers = (store.answers as Answer[]).filter(
+    store.responses = store.responses.filter((item) => item.id !== responseId);
+    store.answers = store.answers.filter(
       (answer) => answer.responseId !== responseId
     );
 
-    const survey = (store.surveys as Survey[]).find((item) => item.id === surveyId);
+    const survey = store.surveys.find((item) => item.id === surveyId);
     if (survey) {
       survey.updatedAt = new Date().toISOString();
     }
 
     return true;
+  });
+}
+
+export async function deleteAllResponses(surveyId: string): Promise<number> {
+  return mutateStore((store) => {
+    const responseIds = new Set(
+      store.responses
+        .filter((response) => response.surveyId === surveyId)
+        .map((response) => response.id)
+    );
+
+    if (responseIds.size === 0) return 0;
+
+    store.responses = store.responses.filter(
+      (response) => response.surveyId !== surveyId
+    );
+    store.answers = store.answers.filter(
+      (answer) => !responseIds.has(answer.responseId)
+    );
+
+    const survey = store.surveys.find((item) => item.id === surveyId);
+    if (survey) {
+      survey.updatedAt = new Date().toISOString();
+    }
+
+    return responseIds.size;
   });
 }
 

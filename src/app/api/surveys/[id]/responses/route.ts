@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import { listResponses, submitResponse } from "@/lib/db";
+import {
+  deleteAllResponses,
+  listResponses,
+  submitResponse,
+} from "@/lib/db";
 import type { SubmitResponseInput } from "@/lib/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -44,4 +49,19 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   return NextResponse.json(response, { status: 201 });
+}
+
+export async function DELETE(_request: Request, { params }: Params) {
+  try {
+    const { id } = await params;
+    const deletedCount = await deleteAllResponses(id);
+
+    return NextResponse.json({ success: true, deletedCount });
+  } catch (error) {
+    console.error("DELETE /api/surveys/[id]/responses failed:", error);
+    return NextResponse.json(
+      { error: "전체 평가 데이터 삭제에 실패했습니다." },
+      { status: 500 }
+    );
+  }
 }
