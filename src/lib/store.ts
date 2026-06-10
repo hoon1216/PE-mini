@@ -3,7 +3,6 @@ import path from "path";
 import {
   BlobPreconditionFailedError,
   get,
-  list,
   put,
   type BlobAccessType,
 } from "@vercel/blob";
@@ -20,7 +19,9 @@ export interface Store {
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
 const BLOB_PATH = "pe-mini/store.json";
-const MUTATE_MAX_RETRIES = 8;
+const MUTATE_MAX_RETRIES = 10;
+const READ_RETRY_ATTEMPTS = 5;
+const VERIFY_RETRY_ATTEMPTS = 8;
 
 export const emptyStore = (): Store => ({
   surveys: [],
@@ -42,15 +43,21 @@ export function getStorageStatus(): StorageStatus {
   return "file";
 }
 
-function blobAccessModes(): BlobAccessType[] {
+function blobAccessMode(): BlobAccessType {
   const configured = process.env.BLOB_STORE_ACCESS;
-  if (configured === "public") return ["public"];
-  if (configured === "private") return ["private"];
-  return ["private", "public"];
+  if (configured === "public") return "public";
+  return "private";
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isPreconditionFailed(error: unknown): boolean {
+  return (
+    error instanceof BlobPreconditionFailedError ||
+    (error instanceof Error && error.name === "BlobPreconditionFailedError")
+  );
 }
 
 function ensureFileStore(): void {
@@ -79,42 +86,33 @@ interface BlobStoreSnapshot {
 }
 
 async function readBlobStoreWithEtag(): Promise<BlobStoreSnapshot> {
-  for (const access of blobAccessModes()) {
+  const access = blobAccessMode();
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < READ_RETRY_ATTEMPTS; attempt++) {
     try {
       const result = await get(BLOB_PATH, { access, useCache: false });
-      if (!result) continue;
 
-      if (result.statusCode === 304 || !result.stream) {
-        return { store: emptyStore(), etag: result.blob.etag };
+      if (!result) {
+        return { store: emptyStore(), etag: null };
+      }
+
+      if (result.statusCode !== 200 || !result.stream) {
+        await sleep(40 * (attempt + 1));
+        continue;
       }
 
       const raw = await new Response(result.stream).text();
       const store = raw.trim() ? parseStoreJson(raw) : emptyStore();
       return { store, etag: result.blob.etag };
     } catch (error) {
-      console.warn(`[store] Blob read failed (${access}):`, error);
+      lastError = error;
+      console.warn(`[store] Blob read attempt ${attempt + 1} failed:`, error);
+      await sleep(40 * (attempt + 1));
     }
   }
 
-  try {
-    const { blobs } = await list({ prefix: BLOB_PATH, limit: 1 });
-    const blob = blobs.find((item) => item.pathname === BLOB_PATH);
-    if (!blob) return { store: emptyStore(), etag: null };
-
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
-    const response = await fetch(blob.downloadUrl, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      cache: "no-store",
-    });
-
-    if (!response.ok) return { store: emptyStore(), etag: blob.etag };
-    const raw = await response.text();
-    const store = raw.trim() ? parseStoreJson(raw) : emptyStore();
-    return { store, etag: blob.etag };
-  } catch (error) {
-    console.warn("[store] Blob list/fetch fallback failed:", error);
-    return { store: emptyStore(), etag: null };
-  }
+  throw lastError ?? new Error("Blob read failed after retries");
 }
 
 async function readBlobStore(): Promise<Store> {
@@ -124,50 +122,32 @@ async function readBlobStore(): Promise<Store> {
 
 async function writeBlobStore(store: Store, etag: string | null): Promise<void> {
   const payload = JSON.stringify(store, null, 2);
-  let lastError: unknown;
+  const access = blobAccessMode();
 
-  for (const access of blobAccessModes()) {
-    try {
-      await put(BLOB_PATH, payload, {
-        access,
-        allowOverwrite: true,
-        contentType: "application/json",
-        addRandomSuffix: false,
-        cacheControlMaxAge: 60,
-        ...(etag ? { ifMatch: etag } : {}),
-      });
-      return;
-    } catch (error) {
-      lastError = error;
-      if (error instanceof BlobPreconditionFailedError) {
-        throw error;
-      }
-      console.warn(`[store] Blob write failed (${access}):`, error);
-    }
-  }
-
-  throw lastError ?? new Error("Blob write failed");
+  await put(BLOB_PATH, payload, {
+    access,
+    allowOverwrite: true,
+    contentType: "application/json",
+    addRandomSuffix: false,
+    ...(etag ? { ifMatch: etag } : {}),
+  });
 }
 
-async function writeBlobStoreWithRetry(store: Store): Promise<void> {
-  for (let attempt = 0; attempt < MUTATE_MAX_RETRIES; attempt++) {
-    const { etag } = await readBlobStoreWithEtag();
-    try {
-      await writeBlobStore(store, etag);
-      return;
-    } catch (error) {
-      if (
-        error instanceof BlobPreconditionFailedError &&
-        attempt < MUTATE_MAX_RETRIES - 1
-      ) {
-        await sleep(25 * (attempt + 1) + Math.random() * 25);
-        continue;
-      }
-      throw error;
+async function verifyBlobWrite(expected: Store): Promise<boolean> {
+  const expectedJson = JSON.stringify(expected);
+
+  for (let attempt = 0; attempt < VERIFY_RETRY_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      await sleep(60 * attempt);
+    }
+
+    const { store: current } = await readBlobStoreWithEtag();
+    if (JSON.stringify(current) === expectedJson) {
+      return true;
     }
   }
 
-  throw new Error("Blob write failed after retries");
+  return false;
 }
 
 export function parseStoreJson(raw: string): Store {
@@ -190,9 +170,29 @@ export async function readStore(): Promise<Store> {
 
 export async function writeStore(store: Store): Promise<void> {
   if (isBlobStorageEnabled()) {
-    await writeBlobStoreWithRetry(store);
-    return;
+    for (let attempt = 0; attempt < MUTATE_MAX_RETRIES; attempt++) {
+      const { etag } = await readBlobStoreWithEtag();
+      try {
+        await writeBlobStore(store, etag);
+        if (await verifyBlobWrite(store)) {
+          return;
+        }
+      } catch (error) {
+        if (isPreconditionFailed(error) && attempt < MUTATE_MAX_RETRIES - 1) {
+          await sleep(40 * (attempt + 1));
+          continue;
+        }
+        throw error;
+      }
+
+      console.warn(
+        `[store] writeStore verification failed (attempt ${attempt + 1}), retrying...`
+      );
+    }
+
+    throw new Error("Blob write failed verification after retries");
   }
+
   writeFileStore(store);
 }
 
@@ -210,20 +210,23 @@ export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
 
     try {
       await writeBlobStore(store, etag);
-      return result;
+      if (await verifyBlobWrite(store)) {
+        return result;
+      }
     } catch (error) {
-      if (
-        error instanceof BlobPreconditionFailedError &&
-        attempt < MUTATE_MAX_RETRIES - 1
-      ) {
-        await sleep(25 * (attempt + 1) + Math.random() * 25);
+      if (isPreconditionFailed(error) && attempt < MUTATE_MAX_RETRIES - 1) {
+        await sleep(40 * (attempt + 1));
         continue;
       }
       throw error;
     }
+
+    console.warn(
+      `[store] mutateStore verification failed (attempt ${attempt + 1}), retrying...`
+    );
   }
 
-  throw new Error("Store mutation failed after retries");
+  throw new Error("Store mutation failed verification after retries");
 }
 
 export async function replaceStore(store: Store): Promise<Store> {
