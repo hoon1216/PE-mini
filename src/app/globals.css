@@ -42,18 +42,32 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--primary);
   border: 3px solid #ffffff;
   box-shadow: 0 1px 4px rgb(15 23 42 / 20%);
   cursor: pointer;
+}
+
+.score-slider--unset::-webkit-slider-thumb {
+  background: #ef4444;
+}
+
+.score-slider--set::-webkit-slider-thumb {
+  background: var(--primary);
 }
 
 .score-slider::-moz-range-thumb {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--primary);
   border: 3px solid #ffffff;
   box-shadow: 0 1px 4px rgb(15 23 42 / 20%);
   cursor: pointer;
+}
+
+.score-slider--unset::-moz-range-thumb {
+  background: #ef4444;
+}
+
+.score-slider--set::-moz-range-thumb {
+  background: var(--primary);
 }

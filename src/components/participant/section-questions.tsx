@@ -86,6 +86,7 @@ export function SectionQuestions({
                       </p>
                       <ScoreSlider
                         value={Number(scores[question.id] ?? 3)}
+                        isSet={!!scores[question.id]}
                         onChange={(score) => onScoreChange(question.id, score)}
                       />
                     </div>
