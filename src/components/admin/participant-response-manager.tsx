@@ -62,10 +62,12 @@ export function ParticipantResponseManager({
         method: "DELETE",
       });
 
-      setResponses((current) =>
-        current.filter((item) => item.id !== response.id)
-      );
-      await loadResponses();
+      const refreshed = await loadResponses();
+      if (refreshed.some((item) => item.id === response.id)) {
+        throw new Error(
+          "삭제는 완료됐지만 목록이 아직 갱신되지 않았습니다. 잠시 후 새로고침해 주세요."
+        );
+      }
       setMessage(`"${label}"님의 평가 데이터를 삭제했습니다.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "삭제에 실패했습니다.");
@@ -93,7 +95,12 @@ export function ParticipantResponseManager({
       );
 
       setResponses([]);
-      await loadResponses();
+      const refreshed = await loadResponses();
+      if (refreshed.length > 0) {
+        throw new Error(
+          "삭제는 완료됐지만 목록이 아직 갱신되지 않았습니다. 잠시 후 새로고침해 주세요."
+        );
+      }
       setMessage(`${result.deletedCount}건의 평가 데이터를 삭제했습니다.`);
     } catch (err) {
       setError(
