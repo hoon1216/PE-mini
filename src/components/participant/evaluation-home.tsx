@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { fetchJson } from "@/lib/fetch-json";
 import {
   allSectionsCompleted,
@@ -14,6 +14,7 @@ import {
   saveDraft,
   sectionHasQuestions,
 } from "@/lib/evaluation-draft";
+import type { RankingAnswer } from "@/lib/ranking-utils";
 import type { AgeGroup, Gender, SurveyDetail } from "@/lib/types";
 import { AGE_GROUP_LABELS, GENDER_LABELS } from "@/lib/types";
 
@@ -28,20 +29,34 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
   const [gender, setGender] = useState<Gender | "">("");
   const [ageGroup, setAgeGroup] = useState<AgeGroup | "">("");
   const [completedIds, setCompletedIds] = useState<string[]>([]);
+  const [draftScores, setDraftScores] = useState<Record<string, string>>({});
+  const [draftRankings, setDraftRankings] = useState<
+    Record<string, RankingAnswer>
+  >({});
+  const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
+  const [draftChoices, setDraftChoices] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
+  function syncDraftState(surveyId: string) {
+    const draft = getOrCreateDraft(surveyId);
+    setParticipantName(draft.participantName ?? "");
+    setGender(draft.gender);
+    setAgeGroup(draft.ageGroup);
+    setCompletedIds([...draft.completedSectionIds]);
+    setDraftScores({ ...draft.scores });
+    setDraftRankings({ ...draft.rankings });
+    setDraftTexts({ ...draft.texts });
+    setDraftChoices({ ...draft.choices });
+  }
+
   useEffect(() => {
     fetchJson<SurveyDetail>(`/api/surveys/slug/${slug}`)
       .then((data) => {
         setSurvey(data);
-        const draft = getOrCreateDraft(data.id);
-        setParticipantName(draft.participantName ?? "");
-        setGender(draft.gender);
-        setAgeGroup(draft.ageGroup);
-        setCompletedIds(draft.completedSectionIds);
+        syncDraftState(data.id);
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "조사 로딩 실패")
@@ -51,11 +66,7 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
 
   useEffect(() => {
     if (!survey) return;
-    const draft = getOrCreateDraft(survey.id);
-    setParticipantName(draft.participantName ?? "");
-    setGender(draft.gender);
-    setAgeGroup(draft.ageGroup);
-    setCompletedIds([...draft.completedSectionIds]);
+    syncDraftState(survey.id);
   }, [survey, pathname]);
 
   function persistProfile(
@@ -88,26 +99,34 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
 
   const evaluableSections =
     survey?.sections.filter(sectionHasQuestions) ?? [];
-  const completedCount = evaluableSections.filter((s) =>
-    completedIds.includes(s.id)
-  ).length;
+
+  const currentDraft = survey
+    ? {
+        surveyId: survey.id,
+        participantName,
+        gender,
+        ageGroup,
+        completedSectionIds: completedIds,
+        scores: draftScores,
+        rankings: draftRankings,
+        texts: draftTexts,
+        choices: draftChoices,
+      }
+    : null;
+
+  const completedCount = currentDraft
+    ? evaluableSections.filter((section) =>
+        isSectionCompleted(section, currentDraft)
+      ).length
+    : 0;
+
   const canSubmit =
     !!survey &&
-    !!participantName.trim() &&
-    !!gender &&
-    !!ageGroup &&
-    allSectionsCompleted(survey, {
-      surveyId: survey.id,
-      participantName,
-      gender,
-      ageGroup,
-      completedSectionIds: completedIds,
-      scores: getOrCreateDraft(survey.id).scores,
-      rankings: getOrCreateDraft(survey.id).rankings,
-    });
+    !!currentDraft &&
+    allSectionsCompleted(survey, currentDraft);
 
   async function handleFinalSubmit() {
-    if (!survey || !canSubmit) return;
+    if (!survey || !currentDraft || !canSubmit) return;
 
     setSubmitting(true);
     setError("");
@@ -117,6 +136,10 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
     draft.gender = gender;
     draft.ageGroup = ageGroup;
     draft.completedSectionIds = completedIds;
+    draft.scores = draftScores;
+    draft.rankings = draftRankings;
+    draft.texts = draftTexts;
+    draft.choices = draftChoices;
 
     try {
       await fetchJson(`/api/surveys/${survey.id}/responses`, {
@@ -182,8 +205,11 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
         <h2 className="text-lg font-semibold">조사 대상 정보</h2>
         <div className="mt-4 grid gap-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">이름</label>
+            <label htmlFor="participant-name" className="mb-1 block text-sm font-medium">
+              이름
+            </label>
             <input
+              id="participant-name"
               type="text"
               value={participantName}
               onChange={(e) => handleNameChange(e.target.value)}
@@ -193,36 +219,42 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium">성별</label>
-            <select
-              value={gender}
-              onChange={(e) => handleGenderChange(e.target.value as Gender)}
-              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
-            >
-              <option value="">선택</option>
-              {(Object.keys(GENDER_LABELS) as Gender[]).map((g) => (
-                <option key={g} value={g}>
-                  {GENDER_LABELS[g]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">연령대</label>
-            <select
-              value={ageGroup}
-              onChange={(e) => handleAgeChange(e.target.value as AgeGroup)}
-              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
-            >
-              <option value="">선택</option>
-              {(Object.keys(AGE_GROUP_LABELS) as AgeGroup[]).map((age) => (
-                <option key={age} value={age}>
-                  {AGE_GROUP_LABELS[age]}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label htmlFor="participant-gender" className="mb-1 block text-sm font-medium">
+                성별
+              </label>
+              <select
+                id="participant-gender"
+                value={gender}
+                onChange={(e) => handleGenderChange(e.target.value as Gender)}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              >
+                <option value="">선택</option>
+                {(Object.keys(GENDER_LABELS) as Gender[]).map((g) => (
+                  <option key={g} value={g}>
+                    {GENDER_LABELS[g]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="participant-age" className="mb-1 block text-sm font-medium">
+                연령대
+              </label>
+              <select
+                id="participant-age"
+                value={ageGroup}
+                onChange={(e) => handleAgeChange(e.target.value as AgeGroup)}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              >
+                <option value="">선택</option>
+                {(Object.keys(AGE_GROUP_LABELS) as AgeGroup[]).map((age) => (
+                  <option key={age} value={age}>
+                    {AGE_GROUP_LABELS[age]}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </section>
@@ -243,15 +275,8 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
 
         <ul className="mt-4 space-y-3">
           {evaluableSections.map((section) => {
-            const completed = isSectionCompleted(section.id, {
-              surveyId: survey.id,
-              participantName,
-              gender,
-              ageGroup,
-              completedSectionIds: completedIds,
-              scores: {},
-              rankings: {},
-            });
+            const completed =
+              !!currentDraft && isSectionCompleted(section, currentDraft);
 
             return (
               <li
@@ -270,11 +295,12 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
                   )}
                 </div>
                 {profileReady ? (
-                  <Link href={`/s/${slug}/section/${section.id}`}>
-                    <Button type="button" className="shrink-0 px-4 py-2">
-                      {completed ? "수정" : "시작"}
-                    </Button>
-                  </Link>
+                  <ButtonLink
+                    href={`/s/${slug}/section/${section.id}`}
+                    className="shrink-0 px-4 py-2"
+                  >
+                    {completed ? "수정" : "시작"}
+                  </ButtonLink>
                 ) : (
                   <Button type="button" className="shrink-0 px-4 py-2" disabled>
                     시작
@@ -286,7 +312,11 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
         </ul>
       </section>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
 
       <Button
         type="button"

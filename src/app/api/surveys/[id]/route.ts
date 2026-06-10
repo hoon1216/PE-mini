@@ -1,6 +1,11 @@
 import { apiErrorMessage } from "@/lib/api-error";
 import { jsonNoStore } from "@/lib/api-json";
-import { deleteSurvey, getSurveyById, updateSurveyContent } from "@/lib/db";
+import {
+  deleteSurvey,
+  getSurveyById,
+  SurveyContentError,
+  updateSurveyContent,
+} from "@/lib/db";
 import type { UpdateSurveyContentInput } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -9,14 +14,19 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
-  const { id } = await params;
-  const survey = await getSurveyById(id);
+  try {
+    const { id } = await params;
+    const survey = await getSurveyById(id);
 
-  if (!survey) {
-    return jsonNoStore({ error: "조사를 찾을 수 없습니다." }, { status: 404 });
+    if (!survey) {
+      return jsonNoStore({ error: "조사를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    return jsonNoStore(survey);
+  } catch (error) {
+    console.error("GET /api/surveys/[id] failed:", error);
+    return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
-
-  return jsonNoStore(survey);
 }
 
 export async function PUT(request: Request, { params }: Params) {
@@ -50,6 +60,9 @@ export async function PUT(request: Request, { params }: Params) {
     return jsonNoStore(survey);
   } catch (error) {
     console.error("PUT /api/surveys/[id] failed:", error);
+    if (error instanceof SurveyContentError) {
+      return jsonNoStore({ error: error.message }, { status: 400 });
+    }
     return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
 }
@@ -69,9 +82,6 @@ export async function DELETE(_request: Request, { params }: Params) {
     return jsonNoStore({ success: true });
   } catch (error) {
     console.error("DELETE /api/surveys/[id] failed:", error);
-    return jsonNoStore(
-      { error: "조사 삭제에 실패했습니다." },
-      { status: 500 }
-    );
+    return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
 }

@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Survey {
@@ -65,6 +66,7 @@ model Answer {
   response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
+  @@unique([responseId, questionId])
   @@index([responseId])
   @@index([questionId])
 }

@@ -4,12 +4,17 @@ import type {
   QuestionType,
   RankingQuestionConfig,
   ScoreQuestionConfig,
+  TextQuestionConfig,
+  ChoiceQuestionConfig,
 } from "./types";
 import {
   configForQuestionType,
   createDefaultQuestion,
+  defaultQuestionTitle,
+  defaultChoiceQuestionConfig,
   defaultRankingQuestionConfig,
   defaultScoreQuestionConfig,
+  defaultTextQuestionConfig,
 } from "./types";
 
 type LegacyScoreSectionConfig = { items?: { id: string; category: string; combination: string }[] };
@@ -24,6 +29,27 @@ export function normalizeQuestionConfig(
   type: QuestionType,
   config: unknown
 ): QuestionConfig {
+  if (type === "text") {
+    const raw = (config ?? {}) as Partial<TextQuestionConfig>;
+    const defaults = defaultTextQuestionConfig();
+    return {
+      placeholder: raw.placeholder ?? defaults.placeholder,
+      maxLength: raw.maxLength ?? defaults.maxLength,
+      rankGroup: raw.rankGroup,
+    };
+  }
+
+  if (type === "choice") {
+    const raw = (config ?? {}) as Partial<ChoiceQuestionConfig>;
+    const defaults = defaultChoiceQuestionConfig();
+    const options = raw.options?.length ? raw.options : defaults.options;
+    const selectCount = Math.min(
+      Math.max(1, Math.floor(raw.selectCount ?? defaults.selectCount ?? 1)),
+      options.length
+    );
+    return { options, selectCount };
+  }
+
   if (type === "score") {
     const raw = (config ?? {}) as Partial<ScoreQuestionConfig> & LegacyScoreSectionConfig;
     if (raw.items?.length) {
@@ -52,7 +78,7 @@ export function normalizeQuestion(question: Question): Question {
   const type = (question.type as QuestionType) || "score";
   return {
     ...question,
-    title: question.title || (type === "score" ? "점수 문항" : "순위 문항"),
+    title: question.title || defaultQuestionTitle(type),
     description: question.description ?? null,
     type,
     config: normalizeQuestionConfig(type, question.config),

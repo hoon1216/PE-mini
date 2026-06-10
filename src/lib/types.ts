@@ -1,4 +1,4 @@
-export type QuestionType = "score" | "ranking";
+export type QuestionType = "score" | "ranking" | "text" | "choice";
 export type Gender = "male" | "female";
 export type AgeGroup = "10s" | "20s" | "30s" | "40s" | "50s" | "60s";
 
@@ -11,7 +11,31 @@ export interface RankingQuestionConfig {
   combinations: string[];
 }
 
-export type QuestionConfig = ScoreQuestionConfig | RankingQuestionConfig;
+export interface TextQuestionConfig {
+  placeholder?: string;
+  maxLength?: number;
+  /** Matches a combination from the preceding ranking question (블랙·그레이·순위 섹션). */
+  rankGroup?: string;
+}
+
+export interface ChoiceQuestionConfig {
+  options: string[];
+  /** Number of options the participant must select (1 = single choice). */
+  selectCount?: number;
+}
+
+export type QuestionConfig =
+  | ScoreQuestionConfig
+  | RankingQuestionConfig
+  | TextQuestionConfig
+  | ChoiceQuestionConfig;
+
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  score: "점수 부과형",
+  ranking: "순위 선정형",
+  text: "주관식",
+  choice: "객관식",
+};
 
 export interface Survey {
   id: string;
@@ -111,9 +135,53 @@ export interface RankingSectionStats {
   combinations: RankingCombinationStats[];
 }
 
+export interface TextResponseEntry {
+  responseId: string;
+  participantName: string | null;
+  gender: Gender | null;
+  ageGroup: AgeGroup | null;
+  submittedAt: string;
+  value: string;
+}
+
+export interface TextGroupItemStats {
+  questionId: string;
+  questionTitle: string;
+  responses: TextResponseEntry[];
+}
+
+export interface TextGroupStats {
+  groupName: string;
+  items: TextGroupItemStats[];
+}
+
+export interface TextSectionStats {
+  sectionId: string;
+  sectionTitle: string;
+  rankingQuestionTitle: string | null;
+  groupedByRank1: boolean;
+  groups: TextGroupStats[];
+}
+
+export interface ChoiceOptionStats {
+  option: string;
+  count: number;
+  percent: number;
+}
+
+export interface ChoiceSectionStats {
+  sectionId: string;
+  sectionTitle: string;
+  questionId: string;
+  questionTitle: string;
+  options: ChoiceOptionStats[];
+}
+
 export type DashboardSectionTable =
   | { type: "score"; data: ScoreSectionStats }
-  | { type: "ranking"; data: RankingSectionStats };
+  | { type: "ranking"; data: RankingSectionStats }
+  | { type: "text"; data: TextSectionStats }
+  | { type: "choice"; data: ChoiceSectionStats };
 
 export interface DashboardSectionGroup {
   sectionId: string;
@@ -181,10 +249,26 @@ export function defaultRankingQuestionConfig(): RankingQuestionConfig {
   return { combinations: ["조합 A", "조합 B", "조합 C"] };
 }
 
+export function defaultTextQuestionConfig(): TextQuestionConfig {
+  return { placeholder: "답변을 입력해주세요", maxLength: 500 };
+}
+
+export function defaultChoiceQuestionConfig(): ChoiceQuestionConfig {
+  return { options: ["선택지 A", "선택지 B", "선택지 C"], selectCount: 1 };
+}
+
 export function configForQuestionType(type: QuestionType): QuestionConfig {
-  return type === "ranking"
-    ? defaultRankingQuestionConfig()
-    : defaultScoreQuestionConfig();
+  if (type === "ranking") return defaultRankingQuestionConfig();
+  if (type === "text") return defaultTextQuestionConfig();
+  if (type === "choice") return defaultChoiceQuestionConfig();
+  return defaultScoreQuestionConfig();
+}
+
+export function defaultQuestionTitle(type: QuestionType): string {
+  if (type === "ranking") return "순위 문항";
+  if (type === "text") return "주관식 문항";
+  if (type === "choice") return "객관식 문항";
+  return "점수 문항";
 }
 
 export function createDefaultQuestion(
@@ -192,7 +276,7 @@ export function createDefaultQuestion(
   type: QuestionType = "score"
 ): Omit<Question, "id" | "sectionId"> {
   return {
-    title: type === "score" ? "점수 문항" : "순위 문항",
+    title: defaultQuestionTitle(type),
     description: null,
     type,
     config: configForQuestionType(type),

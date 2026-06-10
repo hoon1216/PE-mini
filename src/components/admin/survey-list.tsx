@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { SurveyCreateDialog } from "@/components/admin/survey-create-dialog";
 import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { fetchJson } from "@/lib/fetch-json";
 import type { Survey } from "@/lib/types";
 
@@ -109,15 +110,13 @@ export function SurveyList() {
                   className="flex shrink-0 items-center gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Link href={`/admin/surveys/${survey.id}/edit`}>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="px-3 py-1.5"
-                    >
-                      편집
-                    </Button>
-                  </Link>
+                  <ButtonLink
+                    href={`/admin/surveys/${survey.id}/edit`}
+                    variant="secondary"
+                    className="px-3 py-1.5"
+                  >
+                    편집
+                  </ButtonLink>
                   <Button
                     type="button"
                     variant="danger"

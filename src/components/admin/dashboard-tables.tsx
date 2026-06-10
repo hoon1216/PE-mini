@@ -6,6 +6,8 @@ import type {
   RankingSectionStats,
   ScoreItemStats,
   ScoreSectionStats,
+  TextSectionStats,
+  ChoiceSectionStats,
 } from "@/lib/types";
 import { AGE_GROUP_LABELS, GENDER_LABELS } from "@/lib/types";
 import { demographicKey } from "@/lib/demographic-utils";
@@ -333,6 +335,176 @@ function rankingTableLabel(questionTitle: string): string {
     : "순위 선정형";
 }
 
+export function ChoiceSectionTable({
+  section,
+  tableLabel,
+}: {
+  section: ChoiceSectionStats;
+  tableLabel?: string;
+}) {
+  const headerLabel = tableLabel ?? section.questionTitle;
+
+  if (section.options.length === 0) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-muted">{headerLabel}</p>
+        <p className="text-sm text-muted">선택된 답변이 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[320px] border-collapse border border-slate-300 text-sm">
+        <thead>
+          <tr>
+            <th colSpan={3} className={thClass}>
+              {headerLabel}
+            </th>
+          </tr>
+          <tr>
+            <th className={thClass}>선택지</th>
+            <th className={thClass}>선택 수</th>
+            <th className={thClass}>%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {section.options.map((row) => (
+            <tr key={row.option}>
+              <td className={tdClass}>{row.option}</td>
+              <td className={tdClass}>{row.count}</td>
+              <td className={tdClass}>{row.percent}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function formatSubmittedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("ko-KR");
+}
+
+export function TextSectionTable({
+  section,
+  tableLabel,
+}: {
+  section: TextSectionStats;
+  tableLabel?: string;
+}) {
+  const headerLabel = tableLabel ?? "주관식";
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm font-medium text-muted">{headerLabel}</p>
+      {section.groupedByRank1 && section.rankingQuestionTitle && (
+        <p className="text-xs text-muted">
+          {section.rankingQuestionTitle} 1순위 기준 그룹
+        </p>
+      )}
+      {section.groups.map((group) => {
+        const hasResponses = group.items.some((item) => item.responses.length > 0);
+        if (!section.groupedByRank1 && group.groupName === "전체" && !hasResponses) {
+          return (
+            <p key={group.groupName} className="text-sm text-muted">
+              제출된 주관식 답변이 없습니다.
+            </p>
+          );
+        }
+
+        return (
+          <div key={group.groupName} className="space-y-3">
+            {section.groupedByRank1 && (
+              <h4 className="text-base font-semibold">{group.groupName}</h4>
+            )}
+            {group.items.map((item) => (
+              <div key={item.questionId} className="overflow-x-auto">
+                {section.groupedByRank1 && item.questionTitle && (
+                  <p className="mb-2 text-sm font-medium">{item.questionTitle}</p>
+                )}
+                {item.responses.length === 0 ? (
+                  <p className="text-sm text-muted">답변 없음</p>
+                ) : section.groupedByRank1 ? (
+                  <table className="w-full min-w-[360px] border-collapse border border-slate-300 text-sm">
+                    <thead>
+                      <tr>
+                        <th className={thClass}>성별</th>
+                        <th className={thClass}>연령대</th>
+                        <th className={thClass}>답변</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {item.responses.map((response) => (
+                        <tr key={`${item.questionId}-${response.responseId}`}>
+                          <td className={tdClass}>
+                            {response.gender
+                              ? GENDER_LABELS[response.gender]
+                              : "-"}
+                          </td>
+                          <td className={tdClass}>
+                            {response.ageGroup
+                              ? AGE_GROUP_LABELS[response.ageGroup]
+                              : "-"}
+                          </td>
+                          <td className={`${tdClass} text-left`}>
+                            {response.value}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="w-full min-w-[640px] border-collapse border border-slate-300 text-sm">
+                    <thead>
+                      <tr>
+                        <th className={thClass}>문항</th>
+                        <th className={thClass}>참가자</th>
+                        <th className={thClass}>성별</th>
+                        <th className={thClass}>연령대</th>
+                        <th className={thClass}>제출일</th>
+                        <th className={thClass}>답변</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {item.responses.map((response) => (
+                        <tr key={`${item.questionId}-${response.responseId}`}>
+                          <td className={tdClass}>{item.questionTitle}</td>
+                          <td className={tdClass}>
+                            {response.participantName ?? "이름 없음"}
+                          </td>
+                          <td className={tdClass}>
+                            {response.gender
+                              ? GENDER_LABELS[response.gender]
+                              : "-"}
+                          </td>
+                          <td className={tdClass}>
+                            {response.ageGroup
+                              ? AGE_GROUP_LABELS[response.ageGroup]
+                              : "-"}
+                          </td>
+                          <td className={tdClass}>
+                            {formatSubmittedAt(response.submittedAt)}
+                          </td>
+                          <td className={`${tdClass} text-left`}>
+                            {response.value}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DashboardSectionTables({ stats }: { stats: DashboardStats }) {
   const orderedGroups = [...stats.sectionGroups].sort(
     (a, b) => a.sortOrder - b.sortOrder
@@ -361,11 +533,21 @@ export function DashboardSectionTables({ stats }: { stats: DashboardStats }) {
                     section={table.data}
                     tableLabel="점수 부과형"
                   />
-                ) : (
+                ) : table.type === "ranking" ? (
                   <RankingSectionTable
                     key={table.data.questionId}
                     section={table.data}
                     tableLabel={rankingTableLabel(table.data.questionTitle)}
+                  />
+                ) : table.type === "text" ? (
+                  <TextSectionTable
+                    key={`${group.sectionId}-text`}
+                    section={table.data}
+                  />
+                ) : (
+                  <ChoiceSectionTable
+                    key={table.data.questionId}
+                    section={table.data}
                   />
                 )
               )}

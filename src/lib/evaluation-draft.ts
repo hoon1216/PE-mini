@@ -1,4 +1,13 @@
 import {
+  choiceSelectCount,
+  serializeChoiceAnswer,
+  validateChoiceAnswer,
+} from "./choice-utils";
+import {
+  getRank1ForSection,
+  isTextQuestionRequired,
+} from "./text-grouping-utils";
+import {
   normalizeRankingAnswer,
   serializeRankingAnswer,
   validateRankingAnswer,
@@ -11,6 +20,8 @@ import type {
   RankingQuestionConfig,
   Section,
   SurveyDetail,
+  TextQuestionConfig,
+  ChoiceQuestionConfig,
 } from "./types";
 
 export interface EvaluationDraft {
@@ -21,6 +32,26 @@ export interface EvaluationDraft {
   completedSectionIds: string[];
   scores: Record<string, string>;
   rankings: Record<string, RankingAnswer>;
+  texts: Record<string, string>;
+  choices: Record<string, string[]>;
+}
+
+function normalizeDraftChoices(
+  choices: Record<string, string | string[]> | undefined
+): Record<string, string[]> {
+  if (!choices) return {};
+
+  const result: Record<string, string[]> = {};
+  for (const [questionId, value] of Object.entries(choices)) {
+    if (Array.isArray(value)) {
+      result[questionId] = value;
+    } else if (typeof value === "string" && value) {
+      result[questionId] = [value];
+    } else {
+      result[questionId] = [];
+    }
+  }
+  return result;
 }
 
 function draftKey(surveyId: string): string {
@@ -36,6 +67,8 @@ export function createEmptyDraft(surveyId: string): EvaluationDraft {
     completedSectionIds: [],
     scores: {},
     rankings: {},
+    texts: {},
+    choices: {},
   };
 }
 
@@ -44,7 +77,13 @@ export function loadDraft(surveyId: string): EvaluationDraft | null {
   const raw = sessionStorage.getItem(draftKey(surveyId));
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as EvaluationDraft;
+    const parsed = JSON.parse(raw) as Partial<EvaluationDraft>;
+    return {
+      ...createEmptyDraft(surveyId),
+      ...parsed,
+      texts: parsed.texts ?? {},
+      choices: normalizeDraftChoices(parsed.choices),
+    };
   } catch {
     return null;
   }
@@ -68,15 +107,23 @@ export function sectionHasQuestions(
   section: Section & { questions: Question[] }
 ): boolean {
   return section.questions.some(
-    (q) => q.type === "score" || q.type === "ranking"
+    (q) =>
+      q.type === "score" ||
+      q.type === "ranking" ||
+      q.type === "text" ||
+      q.type === "choice"
   );
 }
 
 export function validateSectionAnswers(
   section: Section & { questions: Question[] },
   scores: Record<string, string>,
-  rankings: Record<string, RankingAnswer>
+  rankings: Record<string, RankingAnswer>,
+  texts: Record<string, string>,
+  choices: Record<string, string[]>
 ): string | null {
+  const rank1 = getRank1ForSection(section, rankings);
+
   for (const question of section.questions) {
     if (question.type === "score") {
       if (!scores[question.id]) {
@@ -89,6 +136,21 @@ export function validateSectionAnswers(
         config.combinations.length
       );
       if (rankingError) return rankingError;
+    } else if (question.type === "text") {
+      if (
+        isTextQuestionRequired(question, section, rank1) &&
+        !texts[question.id]?.trim()
+      ) {
+        return "주관식 문항에 답변을 입력해주세요.";
+      }
+    } else if (question.type === "choice") {
+      const config = question.config as ChoiceQuestionConfig;
+      const choiceError = validateChoiceAnswer(
+        choices[question.id] ?? [],
+        config.options,
+        choiceSelectCount(config)
+      );
+      if (choiceError) return choiceError;
     }
   }
 
@@ -100,10 +162,22 @@ export function validateSectionAnswers(
 }
 
 export function isSectionCompleted(
-  sectionId: string,
+  section: Section & { questions: Question[] },
   draft: EvaluationDraft
 ): boolean {
-  return draft.completedSectionIds.includes(sectionId);
+  if (!draft.completedSectionIds.includes(section.id)) {
+    return false;
+  }
+
+  return (
+    validateSectionAnswers(
+      section,
+      draft.scores,
+      draft.rankings,
+      draft.texts,
+      draft.choices
+    ) === null
+  );
 }
 
 export function allSectionsCompleted(
@@ -112,23 +186,59 @@ export function allSectionsCompleted(
 ): boolean {
   const evaluable = survey.sections.filter(sectionHasQuestions);
   if (evaluable.length === 0) return false;
-  return evaluable.every((section) =>
-    draft.completedSectionIds.includes(section.id)
-  );
+  return evaluable.every((section) => isSectionCompleted(section, draft));
+}
+
+export function validateDraftForSubmit(
+  survey: SurveyDetail,
+  draft: EvaluationDraft
+): string | null {
+  if (!draft.participantName?.trim()) {
+    return "이름을 입력해주세요.";
+  }
+
+  if (!draft.gender || !draft.ageGroup) {
+    return "성별과 연령대를 선택해주세요.";
+  }
+
+  const evaluable = survey.sections.filter(sectionHasQuestions);
+  for (const section of evaluable) {
+    const error = validateSectionAnswers(
+      section,
+      draft.scores,
+      draft.rankings,
+      draft.texts,
+      draft.choices
+    );
+    if (error) return error;
+  }
+
+  return null;
 }
 
 export function buildSubmitPayload(
   survey: SurveyDetail,
   draft: EvaluationDraft
 ) {
+  const validationError = validateDraftForSubmit(survey, draft);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
   const answers: { questionId: string; value: string }[] = [];
 
   for (const section of survey.sections) {
+    const rank1 = getRank1ForSection(section, draft.rankings);
+
     for (const question of section.questions) {
       if (question.type === "score") {
+        const score = draft.scores[question.id];
+        if (!score) {
+          throw new Error("모든 항목의 점수를 선택해주세요.");
+        }
         answers.push({
           questionId: question.id,
-          value: draft.scores[question.id] ?? "3",
+          value: score,
         });
       } else if (question.type === "ranking") {
         const config = question.config as RankingQuestionConfig;
@@ -139,6 +249,36 @@ export function buildSubmitPayload(
             ranking,
             config.combinations.length
           ),
+        });
+      } else if (question.type === "text") {
+        if (!isTextQuestionRequired(question, section, rank1)) {
+          continue;
+        }
+        const text = draft.texts[question.id]?.trim();
+        if (!text) {
+          throw new Error("주관식 문항에 답변을 입력해주세요.");
+        }
+        const config = question.config as TextQuestionConfig;
+        const maxLength = config.maxLength ?? 500;
+        answers.push({
+          questionId: question.id,
+          value: text.slice(0, maxLength),
+        });
+      } else if (question.type === "choice") {
+        const config = question.config as ChoiceQuestionConfig;
+        const selectCount = choiceSelectCount(config);
+        const selected = draft.choices[question.id] ?? [];
+        const choiceError = validateChoiceAnswer(
+          selected,
+          config.options,
+          selectCount
+        );
+        if (choiceError) {
+          throw new Error(choiceError);
+        }
+        answers.push({
+          questionId: question.id,
+          value: serializeChoiceAnswer(selected, selectCount),
         });
       }
     }

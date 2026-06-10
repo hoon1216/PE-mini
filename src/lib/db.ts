@@ -2,7 +2,12 @@ import { nanoid } from "nanoid";
 import type { Prisma } from "@prisma/client";
 import { computeDashboardStats } from "./dashboard-stats";
 import { migrateLegacyQuestions, normalizeQuestion } from "./question-utils";
-import { assertDatabaseConfigured, prisma } from "./prisma";
+import {
+  assertDatabaseConfigured,
+  prisma,
+  prismaTransaction,
+  TRANSACTION_OPTIONS,
+} from "./prisma";
 import type {
   Answer,
   CreateSurveyInput,
@@ -15,7 +20,15 @@ import type {
   SurveyDetail,
   UpdateSurveyContentInput,
 } from "./types";
+import { validateSubmitResponse } from "./submit-validation";
 import { createDefaultQuestion } from "./types";
+
+export class SurveyContentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SurveyContentError";
+  }
+}
 
 type SurveyWithRelations = Prisma.SurveyGetPayload<{
   include: {
@@ -228,7 +241,7 @@ export async function updateSurveyContent(
   const existing = await prisma.survey.findUnique({ where: { id: surveyId } });
   if (!existing) return null;
 
-  await prisma.$transaction(async (tx) => {
+  await prismaTransaction.$transaction(async (tx) => {
     await tx.survey.update({
       where: { id: surveyId },
       data: {
@@ -250,21 +263,36 @@ export async function updateSurveyContent(
       const sectionId = sectionInput.id ?? nanoid(12);
       incomingSectionIds.add(sectionId);
 
-      await tx.section.upsert({
+      const existingSection = await tx.section.findUnique({
         where: { id: sectionId },
-        create: {
-          id: sectionId,
-          surveyId,
-          title: sectionInput.title,
-          description: sectionInput.description ?? null,
-          sortOrder: sectionInput.sortOrder,
-        },
-        update: {
-          title: sectionInput.title,
-          description: sectionInput.description ?? null,
-          sortOrder: sectionInput.sortOrder,
-        },
+        select: { surveyId: true },
       });
+
+      if (existingSection) {
+        if (existingSection.surveyId !== surveyId) {
+          throw new SurveyContentError(
+            "다른 조사의 섹션은 수정할 수 없습니다."
+          );
+        }
+        await tx.section.update({
+          where: { id: sectionId },
+          data: {
+            title: sectionInput.title,
+            description: sectionInput.description ?? null,
+            sortOrder: sectionInput.sortOrder,
+          },
+        });
+      } else {
+        await tx.section.create({
+          data: {
+            id: sectionId,
+            surveyId,
+            title: sectionInput.title,
+            description: sectionInput.description ?? null,
+            sortOrder: sectionInput.sortOrder,
+          },
+        });
+      }
 
       const existingQuestions = await tx.question.findMany({
         where: { sectionId },
@@ -286,25 +314,40 @@ export async function updateSurveyContent(
           sortOrder: questionInput.sortOrder,
         });
 
-        await tx.question.upsert({
+        const existingQuestion = await tx.question.findUnique({
           where: { id: questionId },
-          create: {
-            id: questionId,
-            sectionId,
-            title: normalized.title,
-            description: normalized.description,
-            type: normalized.type,
-            config: normalized.config as unknown as Prisma.InputJsonValue,
-            sortOrder: normalized.sortOrder,
-          },
-          update: {
-            title: normalized.title,
-            description: normalized.description,
-            type: normalized.type,
-            config: normalized.config as unknown as Prisma.InputJsonValue,
-            sortOrder: normalized.sortOrder,
-          },
+          select: { sectionId: true },
         });
+
+        if (existingQuestion) {
+          if (existingQuestion.sectionId !== sectionId) {
+            throw new SurveyContentError(
+              "다른 섹션의 문항은 수정할 수 없습니다."
+            );
+          }
+          await tx.question.update({
+            where: { id: questionId },
+            data: {
+              title: normalized.title,
+              description: normalized.description,
+              type: normalized.type,
+              config: normalized.config as unknown as Prisma.InputJsonValue,
+              sortOrder: normalized.sortOrder,
+            },
+          });
+        } else {
+          await tx.question.create({
+            data: {
+              id: questionId,
+              sectionId,
+              title: normalized.title,
+              description: normalized.description,
+              type: normalized.type,
+              config: normalized.config as unknown as Prisma.InputJsonValue,
+              sortOrder: normalized.sortOrder,
+            },
+          });
+        }
       }
 
       const removedQuestionIds = [...existingQuestionIds].filter(
@@ -339,7 +382,7 @@ export async function updateSurveyContent(
       }
       await tx.section.deleteMany({ where: { id: { in: removedSectionIds } } });
     }
-  });
+  }, TRANSACTION_OPTIONS);
 
   return fetchSurveyDetail(surveyId);
 }
@@ -349,12 +392,14 @@ export async function submitResponse(
   input: SubmitResponseInput
 ): Promise<Response | null> {
   assertDatabaseConfigured();
-  const survey = await prisma.survey.findUnique({ where: { id: surveyId } });
+  const survey = await fetchSurveyDetail(surveyId);
   if (!survey) return null;
+
+  validateSubmitResponse(survey, input);
 
   const responseId = nanoid(12);
 
-  const response = await prisma.$transaction(async (tx) => {
+  const response = await prismaTransaction.$transaction(async (tx) => {
     const created = await tx.response.create({
       data: {
         id: responseId,
@@ -378,7 +423,7 @@ export async function submitResponse(
     });
 
     return created;
-  });
+  }, TRANSACTION_OPTIONS);
 
   return normalizeResponse(response);
 }
@@ -386,6 +431,7 @@ export async function submitResponse(
 export async function getDashboardStats(
   surveyId: string
 ): Promise<DashboardStats | null> {
+  assertDatabaseConfigured();
   const survey = await getSurveyById(surveyId);
   if (!survey) return null;
 
@@ -417,6 +463,27 @@ export async function listResponses(surveyId: string): Promise<Response[]> {
   return rows.map(normalizeResponse);
 }
 
+export async function listResponsesWithAnswers(surveyId: string): Promise<
+  (Response & { answers: Answer[] })[]
+> {
+  assertDatabaseConfigured();
+  const rows = await prisma.response.findMany({
+    where: { surveyId },
+    include: { answers: true },
+    orderBy: { submittedAt: "asc" },
+  });
+
+  return rows.map((row) => ({
+    ...normalizeResponse(row),
+    answers: row.answers.map((answer) => ({
+      id: answer.id,
+      responseId: answer.responseId,
+      questionId: answer.questionId,
+      value: answer.value,
+    })),
+  }));
+}
+
 export async function deleteResponse(
   surveyId: string,
   responseId: string
@@ -427,9 +494,9 @@ export async function deleteResponse(
   });
   if (!response) return false;
 
-  await prisma.$transaction([
-    prisma.response.delete({ where: { id: responseId } }),
-    prisma.survey.update({
+  await prismaTransaction.$transaction([
+    prismaTransaction.response.delete({ where: { id: responseId } }),
+    prismaTransaction.survey.update({
       where: { id: surveyId },
       data: { updatedAt: new Date() },
     }),
@@ -443,9 +510,9 @@ export async function deleteAllResponses(surveyId: string): Promise<number> {
   const count = await prisma.response.count({ where: { surveyId } });
   if (count === 0) return 0;
 
-  await prisma.$transaction([
-    prisma.response.deleteMany({ where: { surveyId } }),
-    prisma.survey.update({
+  await prismaTransaction.$transaction([
+    prismaTransaction.response.deleteMany({ where: { surveyId } }),
+    prismaTransaction.survey.update({
       where: { id: surveyId },
       data: { updatedAt: new Date() },
     }),

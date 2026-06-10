@@ -14,12 +14,27 @@ import type {
   ScoreSectionStats,
   Section,
   SurveyDetail,
+  TextGroupItemStats,
+  TextGroupStats,
+  TextSectionStats,
+  ChoiceSectionStats,
+  ChoiceQuestionConfig,
 } from "./types";
+import {
+  choiceSelectCount,
+  parseChoiceAnswer,
+} from "./choice-utils";
 import {
   demographicKey,
   getPresentAgeGroups,
   parseRankingAnswer,
 } from "./demographic-utils";
+import {
+  findPrecedingRankingQuestion,
+  isRankGroupedTextSection,
+  textQuestionAppliesToRankGroup,
+  type GroupingQuestion,
+} from "./text-grouping-utils";
 
 function average(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -247,6 +262,159 @@ function buildRankingSectionStats(
   };
 }
 
+function textQuestionTitle(question: Question): string {
+  return question.title && question.title !== "주관식 문항"
+    ? question.title
+    : "주관식 답변";
+}
+
+function buildTextSectionStats(
+  section: Section & { questions: Question[] },
+  textQuestions: Question[],
+  rankingQuestion: (GroupingQuestion & { id: string; title: string }) | null,
+  responses: Response[],
+  answers: Answer[]
+): TextSectionStats {
+  const groupedByRank1 =
+    isRankGroupedTextSection(section) && rankingQuestion !== null;
+
+  if (!groupedByRank1 || !rankingQuestion) {
+    const items: TextGroupItemStats[] = textQuestions.map((question) => ({
+      questionId: question.id,
+      questionTitle: textQuestionTitle(question),
+      responses: responses
+        .map((response) => {
+          const answer = answers.find(
+            (a) =>
+              a.responseId === response.id && a.questionId === question.id
+          );
+          if (!answer?.value?.trim()) return null;
+          return {
+            responseId: response.id,
+            participantName: response.participantName,
+            gender: response.gender,
+            ageGroup: response.ageGroup,
+            submittedAt: response.submittedAt,
+            value: answer.value.trim(),
+          };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== null),
+    }));
+
+    return {
+      sectionId: section.id,
+      sectionTitle: section.title,
+      rankingQuestionTitle: null,
+      groupedByRank1: false,
+      groups: [{ groupName: "전체", items }],
+    };
+  }
+
+  const rankingConfig = rankingQuestion.config as RankingQuestionConfig;
+  const groups: TextGroupStats[] = rankingConfig.combinations.map(
+    (groupName) => {
+      const items: TextGroupItemStats[] = textQuestions
+        .filter((question) => textQuestionAppliesToRankGroup(question, groupName))
+        .map((question) => ({
+          questionId: question.id,
+          questionTitle: textQuestionTitle(question),
+          responses: responses
+            .map((response) => {
+              const rankAnswer = answers.find(
+                (a) =>
+                  a.responseId === response.id &&
+                  a.questionId === rankingQuestion.id
+              );
+              const parsed = parseRankingAnswer(rankAnswer?.value ?? "");
+              if (parsed?.rank1 !== groupName) return null;
+
+              const textAnswer = answers.find(
+                (a) =>
+                  a.responseId === response.id && a.questionId === question.id
+              );
+              if (!textAnswer?.value?.trim()) return null;
+
+              return {
+                responseId: response.id,
+                participantName: response.participantName,
+                gender: response.gender,
+                ageGroup: response.ageGroup,
+                submittedAt: response.submittedAt,
+                value: textAnswer.value.trim(),
+              };
+            })
+            .filter(
+              (entry): entry is NonNullable<typeof entry> => entry !== null
+            ),
+        }));
+
+      return { groupName, items };
+    }
+  );
+
+  return {
+    sectionId: section.id,
+    sectionTitle: section.title,
+    rankingQuestionTitle:
+      rankingQuestion.title !== "순위 문항"
+        ? rankingQuestion.title
+        : "순위 선정",
+    groupedByRank1: true,
+    groups,
+  };
+}
+
+function choiceQuestionTitle(question: Question): string {
+  return question.title && question.title !== "객관식 문항"
+    ? question.title
+    : "객관식";
+}
+
+function buildChoiceSectionStats(
+  section: Section,
+  question: Question,
+  responses: Response[],
+  answers: Answer[]
+): ChoiceSectionStats {
+  const config = question.config as ChoiceQuestionConfig;
+  const selectCount = choiceSelectCount(config);
+  const counts = new Map<string, number>();
+
+  for (const response of responses) {
+    const answer = answers.find(
+      (a) => a.responseId === response.id && a.questionId === question.id
+    );
+    if (!answer) continue;
+
+    const selected = parseChoiceAnswer(answer.value, selectCount);
+    for (const option of selected) {
+      if (!config.options.includes(option)) continue;
+      counts.set(option, (counts.get(option) ?? 0) + 1);
+    }
+  }
+
+  const total = responses.length;
+  const options = config.options
+    .filter((option) => (counts.get(option) ?? 0) > 0)
+    .map((option) => {
+      const count = counts.get(option) ?? 0;
+      return {
+        option,
+        count,
+        percent:
+          total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
+      };
+    });
+
+  return {
+    sectionId: section.id,
+    sectionTitle: section.title,
+    questionId: question.id,
+    questionTitle: choiceQuestionTitle(question),
+    options,
+  };
+}
+
 export function computeDashboardStats(
   survey: SurveyDetail,
   responses: Response[],
@@ -281,6 +449,41 @@ export function computeDashboardStats(
           responses,
           answers,
           ageGroups
+        ),
+      });
+    }
+
+    const textQuestions = section.questions.filter((q) => q.type === "text");
+    if (textQuestions.length > 0) {
+      const precedingRanking = findPrecedingRankingQuestion(section);
+      const rankingQuestion =
+        precedingRanking?.id && precedingRanking.title !== undefined
+          ? (precedingRanking as GroupingQuestion & {
+              id: string;
+              title: string;
+            })
+          : null;
+
+      tables.push({
+        type: "text",
+        data: buildTextSectionStats(
+          section,
+          textQuestions,
+          rankingQuestion,
+          responses,
+          answers
+        ),
+      });
+    }
+
+    for (const question of section.questions.filter((q) => q.type === "choice")) {
+      tables.push({
+        type: "choice",
+        data: buildChoiceSectionStats(
+          section,
+          question,
+          responses,
+          answers
         ),
       });
     }

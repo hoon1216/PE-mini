@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { jsonNoStore } from "@/lib/api-json";
 import { getDashboardStats } from "@/lib/db";
 
@@ -7,12 +8,17 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
-  const { id } = await params;
-  const stats = await getDashboardStats(id);
+  try {
+    const { id } = await params;
+    const stats = await getDashboardStats(id);
 
-  if (!stats) {
-    return jsonNoStore({ error: "조사를 찾을 수 없습니다." }, { status: 404 });
+    if (!stats) {
+      return jsonNoStore({ error: "조사를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    return jsonNoStore(stats);
+  } catch (error) {
+    console.error("GET /api/surveys/[id]/dashboard failed:", error);
+    return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
-
-  return jsonNoStore(stats);
 }

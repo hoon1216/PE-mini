@@ -9,11 +9,23 @@ import {
   type RankingAnswer,
   type RankingField,
 } from "@/lib/ranking-utils";
+import {
+  choiceSelectCount,
+  toggleChoiceSelection,
+} from "@/lib/choice-utils";
+import {
+  findPrecedingRankingQuestion,
+  getRank1ForSection,
+  isRankGroupedTextSection,
+  shouldShowTextQuestion,
+} from "@/lib/text-grouping-utils";
 import type {
   Question,
   RankingQuestionConfig,
   ScoreQuestionConfig,
   Section,
+  TextQuestionConfig,
+  ChoiceQuestionConfig,
 } from "@/lib/types";
 
 const RANK_LABELS: Record<RankingField, string> = {
@@ -44,23 +56,39 @@ interface SectionQuestionsProps {
   section: Section & { questions: Question[] };
   scores: Record<string, string>;
   rankings: Record<string, RankingAnswer>;
+  texts: Record<string, string>;
+  choices: Record<string, string[]>;
   onScoreChange: (questionId: string, score: number) => void;
   onRankingChange: (
     questionId: string,
     field: RankingField,
     value: string
   ) => void;
+  onTextChange: (questionId: string, value: string) => void;
+  onChoiceChange: (questionId: string, selected: string[]) => void;
 }
 
 export function SectionQuestions({
   section,
   scores,
   rankings,
+  texts,
+  choices,
   onScoreChange,
   onRankingChange,
+  onTextChange,
+  onChoiceChange,
 }: SectionQuestionsProps) {
   const scoreGroups = groupScoreQuestionsByCategory(section.questions);
   const rankingQuestions = section.questions.filter((q) => q.type === "ranking");
+  const textQuestions = section.questions.filter((q) => q.type === "text");
+  const choiceQuestions = section.questions.filter((q) => q.type === "choice");
+  const rankGroupedTextSection = isRankGroupedTextSection(section);
+  const precedingRankingQuestion = findPrecedingRankingQuestion(section);
+  const rank1 = getRank1ForSection(section, rankings);
+  const visibleTextQuestions = textQuestions.filter((question) =>
+    shouldShowTextQuestion(question, section, rank1)
+  );
 
   return (
     <div className="space-y-5">
@@ -144,6 +172,122 @@ export function SectionQuestions({
           </div>
         );
       })}
+
+      {choiceQuestions.length > 0 && (
+        <div className="space-y-4">
+          <p className="text-xs text-muted">객관식</p>
+          {choiceQuestions.map((question) => {
+            const config = question.config as ChoiceQuestionConfig;
+            const selectCount = choiceSelectCount(config);
+            const selected = choices[question.id] ?? [];
+            const groupName = `choice-${question.id}`;
+            const isSingle = selectCount === 1;
+            const atLimit = !isSingle && selected.length >= selectCount;
+
+            return (
+              <fieldset key={question.id} className="space-y-2">
+                <legend className="text-sm font-medium">
+                  {question.title !== "객관식 문항"
+                    ? question.title
+                    : "객관식 답변"}
+                </legend>
+                {question.description && (
+                  <p className="text-xs text-muted">{question.description}</p>
+                )}
+                <p className="text-xs text-muted">
+                  {isSingle
+                    ? "1개 선택"
+                    : `${selectCount}개 선택 (${selected.length}/${selectCount})`}
+                </p>
+                <div className="space-y-2">
+                  {config.options.map((option) => {
+                    const isChecked = selected.includes(option);
+                    const isDisabled = !isSingle && !isChecked && atLimit;
+
+                    return (
+                      <label
+                        key={option}
+                        className={`flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5 ${
+                          isDisabled
+                            ? "cursor-not-allowed opacity-50"
+                            : "cursor-pointer"
+                        }`}
+                      >
+                        <input
+                          type={isSingle ? "radio" : "checkbox"}
+                          name={groupName}
+                          value={option}
+                          checked={isChecked}
+                          disabled={isDisabled}
+                          onChange={() =>
+                            onChoiceChange(
+                              question.id,
+                              toggleChoiceSelection(
+                                selected,
+                                option,
+                                selectCount
+                              )
+                            )
+                          }
+                          className="text-primary"
+                        />
+                        <span>{option}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            );
+          })}
+        </div>
+      )}
+
+      {textQuestions.length > 0 && (
+        <div className="space-y-4">
+          <p className="text-xs text-muted">주관식</p>
+          {rankGroupedTextSection && precedingRankingQuestion && !rank1 && (
+            <p className="text-sm text-amber-700">
+              직전 순위 문항에서 1순위를 선택하면 주관식 문항이 표시됩니다.
+            </p>
+          )}
+          {rankGroupedTextSection && rank1 && (
+            <p className="text-sm font-semibold">{rank1} (1순위)</p>
+          )}
+          {visibleTextQuestions.map((question) => {
+            const config = question.config as TextQuestionConfig;
+            const maxLength = config.maxLength ?? 500;
+            const value = texts[question.id] ?? "";
+
+            return (
+              <div key={question.id} className="space-y-2">
+                <label
+                  htmlFor={`text-${question.id}`}
+                  className="block text-sm font-medium"
+                >
+                  {question.title !== "주관식 문항"
+                    ? question.title
+                    : "주관식 답변"}
+                </label>
+                {question.description && (
+                  <p className="text-xs text-muted">{question.description}</p>
+                )}
+                <textarea
+                  id={`text-${question.id}`}
+                  value={value}
+                  onChange={(e) => onTextChange(question.id, e.target.value)}
+                  placeholder={config.placeholder ?? "답변을 입력해주세요"}
+                  maxLength={maxLength}
+                  rows={4}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                />
+                <p className="text-xs text-muted text-right">
+                  {value.length}/{maxLength}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

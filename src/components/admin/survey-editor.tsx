@@ -6,19 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { fetchJson } from "@/lib/fetch-json";
 import { configForType } from "@/lib/question-utils";
+import {
+  findPrecedingRankingQuestion,
+  isRankGroupedTextSection,
+} from "@/lib/text-grouping-utils";
 import type {
   Question,
+  QuestionConfig,
   QuestionType,
   RankingQuestionConfig,
   ScoreQuestionConfig,
   Section,
   SurveyDetail,
+  TextQuestionConfig,
+  ChoiceQuestionConfig,
 } from "@/lib/types";
 import { ParticipantResponseManager } from "@/components/admin/participant-response-manager";
-import { createDefaultQuestion } from "@/lib/types";
+import {
+  createDefaultQuestion,
+  defaultQuestionTitle,
+  QUESTION_TYPE_LABELS,
+} from "@/lib/types";
 
 interface SurveyEditorProps {
   surveyId: string;
+  initialSurvey?: SurveyDetail;
 }
 
 type EditorQuestion = Omit<Question, "id" | "sectionId"> & {
@@ -32,6 +44,87 @@ type EditorSection = Omit<Section, "id" | "surveyId"> & {
   questions: EditorQuestion[];
 };
 
+function mapSurveyToEditorSections(data: SurveyDetail): EditorSection[] {
+  return data.sections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    description: section.description,
+    sortOrder: section.sortOrder,
+    questions: section.questions.map((question) => ({
+      id: question.id,
+      title: question.title,
+      description: question.description,
+      type: question.type,
+      config: question.config,
+      sortOrder: question.sortOrder,
+    })),
+  }));
+}
+
+function cloneQuestionConfig(question: EditorQuestion): QuestionConfig {
+  if (question.type === "score") {
+    return { ...(question.config as ScoreQuestionConfig) };
+  }
+  if (question.type === "text") {
+    return { ...(question.config as TextQuestionConfig) };
+  }
+  if (question.type === "choice") {
+    const config = question.config as ChoiceQuestionConfig;
+    return {
+      options: [...config.options],
+      selectCount: config.selectCount ?? 1,
+    };
+  }
+  return {
+    combinations: [
+      ...(question.config as RankingQuestionConfig).combinations,
+    ],
+  };
+}
+
+function ReorderButtons({
+  onMoveUp,
+  onMoveDown,
+  disableUp,
+  disableDown,
+  label,
+}: {
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  disableUp: boolean;
+  disableDown: boolean;
+  label: string;
+}) {
+  return (
+    <div
+      className="flex items-center gap-1"
+      role="group"
+      aria-label={`${label} 순서 변경`}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        className="px-2 py-1"
+        onClick={onMoveUp}
+        disabled={disableUp}
+        aria-label={`${label} 위로`}
+      >
+        ↑
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        className="px-2 py-1"
+        onClick={onMoveDown}
+        disabled={disableDown}
+        aria-label={`${label} 아래로`}
+      >
+        ↓
+      </Button>
+    </div>
+  );
+}
+
 function createEmptySection(sortOrder: number): EditorSection {
   const defaults = createDefaultQuestion(0);
   return {
@@ -42,46 +135,40 @@ function createEmptySection(sortOrder: number): EditorSection {
   };
 }
 
-export function SurveyEditor({ surveyId }: SurveyEditorProps) {
+export function SurveyEditor({
+  surveyId,
+  initialSurvey,
+}: SurveyEditorProps) {
   const router = useRouter();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [sections, setSections] = useState<EditorSection[]>([]);
+  const [title, setTitle] = useState(initialSurvey?.title ?? "");
+  const [description, setDescription] = useState(
+    initialSurvey?.description ?? ""
+  );
+  const [sections, setSections] = useState<EditorSection[]>(
+    initialSurvey ? mapSurveyToEditorSections(initialSurvey) : []
+  );
   const [newQuestionTypes, setNewQuestionTypes] = useState<
     Record<number, QuestionType>
   >({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSurvey);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (initialSurvey) return;
+
     fetchJson<SurveyDetail>(`/api/surveys/${surveyId}`)
       .then((data) => {
         setTitle(data.title);
         setDescription(data.description ?? "");
-        setSections(
-          data.sections.map((section) => ({
-            id: section.id,
-            title: section.title,
-            description: section.description,
-            sortOrder: section.sortOrder,
-            questions: section.questions.map((question) => ({
-              id: question.id,
-              title: question.title,
-              description: question.description,
-              type: question.type,
-              config: question.config,
-              sortOrder: question.sortOrder,
-            })),
-          }))
-        );
+        setSections(mapSurveyToEditorSections(data));
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "불러오기 실패")
       )
       .finally(() => setLoading(false));
-  }, [surveyId]);
+  }, [surveyId, initialSurvey]);
 
   function updateSection(index: number, patch: Partial<EditorSection>) {
     setSections((prev) =>
@@ -115,8 +202,188 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
     updateQuestion(sectionIndex, questionIndex, {
       type,
       config: configForType(type),
-      title: type === "score" ? "점수 문항" : "순위 문항",
+      title: defaultQuestionTitle(type),
     });
+  }
+
+  function updateChoiceQuestion(
+    sectionIndex: number,
+    questionIndex: number,
+    patch: Partial<ChoiceQuestionConfig>
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "choice") {
+              return question;
+            }
+            const config = question.config as ChoiceQuestionConfig;
+            const next = { ...config, ...patch };
+            const selectCount = Math.min(
+              Math.max(1, Math.floor(next.selectCount ?? 1)),
+              next.options.length
+            );
+            return {
+              ...question,
+              config: { ...next, selectCount },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function updateChoiceOption(
+    sectionIndex: number,
+    questionIndex: number,
+    optionIndex: number,
+    value: string
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "choice") {
+              return question;
+            }
+            const config = question.config as ChoiceQuestionConfig;
+            return {
+              ...question,
+              config: {
+                options: config.options.map((option, i) =>
+                  i === optionIndex ? value : option
+                ),
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function addChoiceOption(sectionIndex: number, questionIndex: number) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "choice") {
+              return question;
+            }
+            const config = question.config as ChoiceQuestionConfig;
+            return {
+              ...question,
+              config: {
+                options: [...config.options, "새 선택지"],
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function removeChoiceOption(
+    sectionIndex: number,
+    questionIndex: number,
+    optionIndex: number
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "choice") {
+              return question;
+            }
+            const config = question.config as ChoiceQuestionConfig;
+            if (config.options.length <= 2) return question;
+            const options = config.options.filter((_, i) => i !== optionIndex);
+            const selectCount = Math.min(
+              config.selectCount ?? 1,
+              options.length
+            );
+            return {
+              ...question,
+              config: {
+                options,
+                selectCount,
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function updateTextQuestion(
+    sectionIndex: number,
+    questionIndex: number,
+    patch: Partial<TextQuestionConfig>
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "text") {
+              return question;
+            }
+            return {
+              ...question,
+              config: {
+                ...(question.config as TextQuestionConfig),
+                ...patch,
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function moveSection(index: number, direction: -1 | 1) {
+    setSections((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next.map((section, sortOrder) => ({ ...section, sortOrder }));
+    });
+  }
+
+  function moveQuestion(
+    sectionIndex: number,
+    questionIndex: number,
+    direction: -1 | 1
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        const target = questionIndex + direction;
+        if (target < 0 || target >= section.questions.length) return section;
+        const questions = [...section.questions];
+        [questions[questionIndex], questions[target]] = [
+          questions[target],
+          questions[questionIndex],
+        ];
+        return {
+          ...section,
+          questions: questions.map((question, sortOrder) => ({
+            ...question,
+            sortOrder,
+          })),
+        };
+      })
+    );
   }
 
   function updateScoreQuestion(
@@ -273,14 +540,7 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
           title: question.title,
           description: question.description,
           type: question.type,
-          config:
-            question.type === "score"
-              ? { ...(question.config as ScoreQuestionConfig) }
-              : {
-                  combinations: [
-                    ...(question.config as RankingQuestionConfig).combinations,
-                  ],
-                },
+          config: cloneQuestionConfig(question),
           sortOrder: index,
         })),
       };
@@ -393,7 +653,16 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
           className="rounded-2xl border border-border bg-card p-6 shadow-sm"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold">섹션 {sectionIndex + 1}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">섹션 {sectionIndex + 1}</h3>
+              <ReorderButtons
+                label={`섹션 ${sectionIndex + 1}`}
+                onMoveUp={() => moveSection(sectionIndex, -1)}
+                onMoveDown={() => moveSection(sectionIndex, 1)}
+                disableUp={sectionIndex === 0}
+                disableDown={sectionIndex === sections.length - 1}
+              />
+            </div>
             <Button
               type="button"
               variant="danger"
@@ -438,6 +707,14 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
                 question.type === "ranking"
                   ? (question.config as RankingQuestionConfig)
                   : null;
+              const textConfig =
+                question.type === "text"
+                  ? (question.config as TextQuestionConfig)
+                  : null;
+              const choiceConfig =
+                question.type === "choice"
+                  ? (question.config as ChoiceQuestionConfig)
+                  : null;
 
               return (
                 <div
@@ -445,9 +722,24 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
                   className="rounded-xl border border-border bg-slate-50 p-4"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-muted">
-                      문항 {questionIndex + 1}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-muted">
+                        문항 {questionIndex + 1}
+                      </p>
+                      <ReorderButtons
+                        label={`섹션 ${sectionIndex + 1} 문항 ${questionIndex + 1}`}
+                        onMoveUp={() =>
+                          moveQuestion(sectionIndex, questionIndex, -1)
+                        }
+                        onMoveDown={() =>
+                          moveQuestion(sectionIndex, questionIndex, 1)
+                        }
+                        disableUp={questionIndex === 0}
+                        disableDown={
+                          questionIndex === section.questions.length - 1
+                        }
+                      />
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
@@ -476,8 +768,13 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
                         }
                         className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                       >
-                        <option value="score">점수 부과형</option>
-                        <option value="ranking">순위 선정형</option>
+                        {(Object.keys(QUESTION_TYPE_LABELS) as QuestionType[]).map(
+                          (type) => (
+                            <option key={type} value={type}>
+                              {QUESTION_TYPE_LABELS[type]}
+                            </option>
+                          )
+                        )}
                       </select>
                     </div>
                     <div>
@@ -567,6 +864,157 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
                       </Button>
                     </div>
                   )}
+
+                  {choiceConfig && (
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          선택해야 하는 개수
+                        </label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={choiceConfig.options.length}
+                          value={choiceConfig.selectCount ?? 1}
+                          onChange={(e) =>
+                            updateChoiceQuestion(sectionIndex, questionIndex, {
+                              selectCount: Number(e.target.value) || 1,
+                            })
+                          }
+                        />
+                        <p className="mt-1 text-xs text-muted">
+                          1이면 단일 선택, 2 이상이면 해당 개수만큼 선택해야
+                          합니다.
+                        </p>
+                      </div>
+                      <p className="text-sm font-medium">선택지 목록</p>
+                      {choiceConfig.options.map((option, optionIndex) => (
+                        <div
+                          key={`${questionIndex}-option-${optionIndex}`}
+                          className="flex gap-2"
+                        >
+                          <Input
+                            value={option}
+                            onChange={(e) =>
+                              updateChoiceOption(
+                                sectionIndex,
+                                questionIndex,
+                                optionIndex,
+                                e.target.value
+                              )
+                            }
+                            placeholder="선택지"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() =>
+                              removeChoiceOption(
+                                sectionIndex,
+                                questionIndex,
+                                optionIndex
+                              )
+                            }
+                            disabled={choiceConfig.options.length <= 2}
+                          >
+                            삭제
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="mt-1"
+                        onClick={() =>
+                          addChoiceOption(sectionIndex, questionIndex)
+                        }
+                      >
+                        선택지 추가
+                      </Button>
+                    </div>
+                  )}
+
+                  {textConfig && (
+                    <div className="mt-3 space-y-3">
+                      {isRankGroupedTextSection(section) &&
+                        (() => {
+                          const rankingQuestion =
+                            findPrecedingRankingQuestion(section);
+                          const combinations = rankingQuestion
+                            ? (rankingQuestion.config as RankingQuestionConfig)
+                                .combinations
+                            : [];
+
+                          if (combinations.length === 0) return null;
+
+                          return (
+                            <div>
+                              <label className="mb-1 block text-sm font-medium">
+                                1순위 그룹 매칭 (선택)
+                              </label>
+                              <select
+                                value={textConfig.rankGroup ?? ""}
+                                onChange={(e) =>
+                                  updateTextQuestion(
+                                    sectionIndex,
+                                    questionIndex,
+                                    {
+                                      rankGroup: e.target.value || undefined,
+                                    }
+                                  )
+                                }
+                                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                              >
+                                <option value="">
+                                  1순위와 무관 (모든 1순위 그룹에 공통)
+                                </option>
+                                {combinations.map((combo) => (
+                                  <option key={combo} value={combo}>
+                                    {combo}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="mt-1 text-xs text-muted">
+                                지정 시 해당 1순위를 선택한 참가자에게만
+                                표시됩니다.
+                              </p>
+                            </div>
+                          );
+                        })()}
+                      <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          입력 안내 (placeholder)
+                        </label>
+                        <Input
+                          value={textConfig.placeholder ?? ""}
+                          onChange={(e) =>
+                            updateTextQuestion(sectionIndex, questionIndex, {
+                              placeholder: e.target.value,
+                            })
+                          }
+                          placeholder="답변을 입력해주세요"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          최대 글자 수
+                        </label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={2000}
+                          value={textConfig.maxLength ?? 500}
+                          onChange={(e) =>
+                            updateTextQuestion(sectionIndex, questionIndex, {
+                              maxLength: Number(e.target.value) || 500,
+                            })
+                          }
+                        />
+                      </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -584,8 +1032,13 @@ export function SurveyEditor({ surveyId }: SurveyEditorProps) {
                 }
                 className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               >
-                <option value="score">점수 부과형</option>
-                <option value="ranking">순위 선정형</option>
+                {(Object.keys(QUESTION_TYPE_LABELS) as QuestionType[]).map(
+                  (type) => (
+                    <option key={type} value={type}>
+                      {QUESTION_TYPE_LABELS[type]}
+                    </option>
+                  )
+                )}
               </select>
               <Button
                 type="button"

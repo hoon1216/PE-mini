@@ -12,10 +12,7 @@ export async function GET() {
     return jsonNoStore(surveys);
   } catch (error) {
     console.error("GET /api/surveys failed:", error);
-    return jsonNoStore(
-      { error: "조사 목록을 불러오지 못했습니다." },
-      { status: 500 }
-    );
+    return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
 }
 
