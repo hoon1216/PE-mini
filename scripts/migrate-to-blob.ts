@@ -18,7 +18,28 @@ async function main() {
   }
 
   const raw = fs.readFileSync(STORE_PATH, "utf8");
-  JSON.parse(raw);
+  const store = JSON.parse(raw) as {
+    surveys?: { title: string; slug: string }[];
+    sections?: unknown[];
+    questions?: unknown[];
+    responses?: unknown[];
+    answers?: unknown[];
+  };
+
+  const surveyCount = store.surveys?.length ?? 0;
+  const responseCount = store.responses?.length ?? 0;
+
+  console.log("업로드할 데이터:");
+  console.log(`  - 조사: ${surveyCount}개`);
+  console.log(`  - 섹션: ${store.sections?.length ?? 0}개`);
+  console.log(`  - 문항: ${store.questions?.length ?? 0}개`);
+  console.log(`  - 제출 응답: ${responseCount}개`);
+
+  if (surveyCount > 0) {
+    for (const survey of store.surveys ?? []) {
+      console.log(`  · ${survey.title} → /s/${survey.slug}`);
+    }
+  }
 
   await put(BLOB_PATH, raw, {
     access: "private",
@@ -28,7 +49,8 @@ async function main() {
     token,
   });
 
-  console.log("로컬 store.json을 Vercel Blob에 업로드했습니다.");
+  console.log("\n완료: 로컬 store.json을 Vercel Blob에 업로드했습니다.");
+  console.log("Vercel 사이트를 새로고침하면 동일한 조사·응답이 표시됩니다.");
 }
 
 main().catch((error) => {
