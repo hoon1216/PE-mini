@@ -41,6 +41,25 @@ npm run dev
    (`BLOB_READ_WRITE_TOKEN`이 자동 설정됩니다.)
 4. Deploy 후 배포 URL에서 관리자·참가자 페이지를 사용합니다.
 
+### 평가자 공개 접속 (Vercel 계정 불필요)
+
+모바일에서 평가 링크(`/s/{slug}`) 접속 시 **Vercel 로그인**이 뜨면, 프로젝트의 **Deployment Protection**이 켜져 있는 것입니다. 평가자는 Vercel 계정이 없으므로 아래 설정이 필요합니다.
+
+1. [vercel.com](https://vercel.com) → **PE-mini** 프로젝트
+2. **Settings** → **Deployment Protection**
+3. 아래 중 하나로 변경:
+   - **Standard Protection** (프로덕션 도메인은 공개, Preview만 보호) — **권장**
+   - 또는 **Vercel Authentication**을 **Production**에서 **Off**
+4. **Save** 후 필요 시 **Redeploy**
+
+설정 후 평가자는 아래 링크로 **로그인 없이** 바로 접속합니다.
+
+```
+https://pe-mini.vercel.app/s/{slug}
+```
+
+> 앱 코드에는 참가자 로그인 기능이 없습니다. 접속 차단은 Vercel 대시보드 설정으로만 해결됩니다.
+
 ### 로컬 평가 내용 그대로 배포하기
 
 로컬 `data/store.json`에 있는 조사·문항·제출 응답을 Vercel에 그대로 옮기는 방법입니다.

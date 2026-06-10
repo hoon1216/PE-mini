@@ -12,6 +12,13 @@ export const metadata: Metadata = {
   description: "Preference Evaluation mini - 웹 기반 선호도 조사 도구",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
