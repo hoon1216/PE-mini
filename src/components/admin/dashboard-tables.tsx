@@ -51,7 +51,7 @@ export function DemographicTable({ data }: { data: DemographicStats }) {
       <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
         <thead>
           <tr>
-            <th colSpan={2 + ageGroups.length} className={thClass}>
+            <th colSpan={3 + ageGroups.length} className={thClass}>
               조사 대상
             </th>
           </tr>
