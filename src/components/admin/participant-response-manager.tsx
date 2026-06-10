@@ -20,10 +20,6 @@ function formatSubmittedAt(value: string): string {
   });
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export function ParticipantResponseManager({
   surveyId,
 }: ParticipantResponseManagerProps) {
@@ -41,23 +37,6 @@ export function ParticipantResponseManager({
     setResponses(data);
     return data;
   }, [surveyId]);
-
-  const loadResponsesUntilCount = useCallback(
-    async (expectedCount: number) => {
-      const maxAttempts = 6;
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const data = await loadResponses();
-        if (data.length === expectedCount) {
-          return true;
-        }
-        await sleep(150 * (attempt + 1));
-      }
-
-      return false;
-    },
-    [loadResponses]
-  );
 
   useEffect(() => {
     loadResponses()
@@ -83,14 +62,10 @@ export function ParticipantResponseManager({
         method: "DELETE",
       });
 
-      const expectedCount = responses.length - 1;
-      const synced = await loadResponsesUntilCount(expectedCount);
-      if (!synced) {
-        throw new Error(
-          "삭제 후 목록이 갱신되지 않았습니다. 잠시 후 다시 시도해 주세요."
-        );
-      }
-
+      setResponses((current) =>
+        current.filter((item) => item.id !== response.id)
+      );
+      await loadResponses();
       setMessage(`"${label}"님의 평가 데이터를 삭제했습니다.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "삭제에 실패했습니다.");
@@ -117,13 +92,8 @@ export function ParticipantResponseManager({
         { method: "DELETE" }
       );
 
-      const synced = await loadResponsesUntilCount(0);
-      if (!synced) {
-        throw new Error(
-          "삭제 후 목록이 갱신되지 않았습니다. 잠시 후 다시 시도해 주세요."
-        );
-      }
-
+      setResponses([]);
+      await loadResponses();
       setMessage(`${result.deletedCount}건의 평가 데이터를 삭제했습니다.`);
     } catch (err) {
       setError(

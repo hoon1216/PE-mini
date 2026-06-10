@@ -8,6 +8,7 @@ import type { SubmitResponseInput } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type Params = { params: Promise<{ id: string }> };
 

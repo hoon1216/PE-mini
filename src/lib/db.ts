@@ -1,7 +1,12 @@
 import { nanoid } from "nanoid";
 import { computeDashboardStats } from "./dashboard-stats";
 import { migrateLegacyQuestions, normalizeQuestion } from "./question-utils";
-import { mutateStore, readStore, type Store } from "./store";
+import {
+  mutateResponseStore,
+  mutateStore,
+  readStore,
+  type Store,
+} from "./store";
 import type {
   Answer,
   CreateSurveyInput,
@@ -292,7 +297,7 @@ export async function submitResponse(
   surveyId: string,
   input: SubmitResponseInput
 ): Promise<Response | null> {
-  return mutateStore((store) => {
+  return mutateResponseStore((store) => {
     const surveys = store.surveys as Survey[];
     const responses = store.responses as Response[];
     const answers = store.answers as Answer[];
@@ -355,7 +360,7 @@ export async function deleteResponse(
   surveyId: string,
   responseId: string
 ): Promise<boolean> {
-  return mutateStore((store) => {
+  return mutateResponseStore((store) => {
     const exists = store.responses.some(
       (item) => item.id === responseId && item.surveyId === surveyId
     );
@@ -376,7 +381,7 @@ export async function deleteResponse(
 }
 
 export async function deleteAllResponses(surveyId: string): Promise<number> {
-  return mutateStore((store) => {
+  return mutateResponseStore((store) => {
     const responseIds = new Set(
       store.responses
         .filter((response) => response.surveyId === surveyId)

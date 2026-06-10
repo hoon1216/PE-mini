@@ -3,6 +3,7 @@ import { deleteResponse } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type Params = { params: Promise<{ id: string; responseId: string }> };
 
