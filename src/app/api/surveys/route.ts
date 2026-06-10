@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { jsonNoStore } from "@/lib/api-json";
 import { createSurvey, listSurveys } from "@/lib/db";
 import type { CreateSurveyInput } from "@/lib/types";
@@ -37,7 +38,6 @@ export async function POST(request: Request) {
     return jsonNoStore(survey, { status: 201 });
   } catch (error) {
     console.error("POST /api/surveys failed:", error);
-    const { formatStoreError } = await import("@/lib/store-errors");
-    return jsonNoStore({ error: formatStoreError(error) }, { status: 500 });
+    return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
 }

@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { jsonNoStore } from "@/lib/api-json";
 import {
   deleteAllResponses,
@@ -47,8 +48,7 @@ export async function POST(request: Request, { params }: Params) {
     return jsonNoStore(response, { status: 201 });
   } catch (error) {
     console.error("POST /api/surveys/[id]/responses failed:", error);
-    const { formatStoreError } = await import("@/lib/store-errors");
-    return jsonNoStore({ error: formatStoreError(error) }, { status: 500 });
+    return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -60,7 +60,6 @@ export async function DELETE(_request: Request, { params }: Params) {
     return jsonNoStore({ success: true, deletedCount });
   } catch (error) {
     console.error("DELETE /api/surveys/[id]/responses failed:", error);
-    const { formatStoreError } = await import("@/lib/store-errors");
-    return jsonNoStore({ error: formatStoreError(error) }, { status: 500 });
+    return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
 }

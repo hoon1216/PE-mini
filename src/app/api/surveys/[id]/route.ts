@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { jsonNoStore } from "@/lib/api-json";
 import { deleteSurvey, getSurveyById, updateSurveyContent } from "@/lib/db";
 import type { UpdateSurveyContentInput } from "@/lib/types";
@@ -49,8 +50,7 @@ export async function PUT(request: Request, { params }: Params) {
     return jsonNoStore(survey);
   } catch (error) {
     console.error("PUT /api/surveys/[id] failed:", error);
-    const { formatStoreError } = await import("@/lib/store-errors");
-    return jsonNoStore({ error: formatStoreError(error) }, { status: 500 });
+    return jsonNoStore({ error: apiErrorMessage(error) }, { status: 500 });
   }
 }
 

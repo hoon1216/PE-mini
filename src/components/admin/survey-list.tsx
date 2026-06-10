@@ -62,19 +62,6 @@ export function SurveyList() {
 
   return (
     <>
-      {surveys.length === 0 && !error && (
-        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-medium">배포 후 조사가 보이지 않나요?</p>
-          <p className="mt-1">
-            로컬 데이터는 Git에 포함되지 않습니다.{" "}
-            <Link href="/admin/import" className="font-semibold underline">
-              로컬 데이터 가져오기
-            </Link>
-            에서 <code>data/store.json</code>을 업로드해주세요.
-          </p>
-        </div>
-      )}
-
       <div className="rounded-2xl border border-border bg-card shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-lg font-semibold">조사 목록</h2>

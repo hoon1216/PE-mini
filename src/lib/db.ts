@@ -1,7 +1,8 @@
 import { nanoid } from "nanoid";
+import type { Prisma } from "@prisma/client";
 import { computeDashboardStats } from "./dashboard-stats";
 import { migrateLegacyQuestions, normalizeQuestion } from "./question-utils";
-import { mutateStore, readStore, type Store } from "./store";
+import { assertDatabaseConfigured, prisma } from "./prisma";
 import type {
   Answer,
   CreateSurveyInput,
@@ -9,13 +10,32 @@ import type {
   Question,
   QuestionConfig,
   Response,
-  Section,
   SubmitResponseInput,
   Survey,
   SurveyDetail,
   UpdateSurveyContentInput,
 } from "./types";
 import { createDefaultQuestion } from "./types";
+
+type SurveyWithRelations = Prisma.SurveyGetPayload<{
+  include: {
+    sections: {
+      include: { questions: true };
+      orderBy: { sortOrder: "asc" };
+    };
+  };
+}>;
+
+const surveyInclude = {
+  sections: {
+    orderBy: { sortOrder: "asc" as const },
+    include: {
+      questions: {
+        orderBy: { sortOrder: "asc" as const },
+      },
+    },
+  },
+};
 
 function slugify(title: string): string {
   const base = title
@@ -29,203 +49,228 @@ function slugify(title: string): string {
   return base || "survey";
 }
 
-function uniqueSlug(store: Store, title: string): string {
-  const surveys = store.surveys as Survey[];
+async function uniqueSlug(title: string): Promise<string> {
   const base = slugify(title);
   let slug = base;
   let counter = 1;
 
-  while (surveys.some((survey) => survey.slug === slug)) {
+  while (await prisma.survey.findUnique({ where: { slug } })) {
     slug = `${base}-${counter++}`;
   }
 
   return slug;
 }
 
-function normalizeResponse(response: Response): Response {
+function toSurvey(row: {
+  id: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): Survey {
   return {
-    ...response,
-    participantName: response.participantName?.trim() || null,
-    gender: response.gender ?? null,
-    ageGroup: response.ageGroup ?? null,
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    description: row.description,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
-function buildSurveyDetail(store: Store, survey: Survey): SurveyDetail {
-  const sections = (store.sections as Section[])
-    .filter((section) => section.surveyId === survey.id)
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((section) => {
-      const storedQuestions = (store.questions as Question[])
-        .filter((question) => question.sectionId === section.id)
-        .sort((a, b) => a.sortOrder - b.sortOrder);
-
-      return {
-        id: section.id,
-        surveyId: section.surveyId,
-        title: section.title,
-        description: section.description,
-        sortOrder: section.sortOrder,
-        questions: migrateLegacyQuestions(section, storedQuestions),
-      };
-    });
-
-  return { ...survey, sections };
-}
-
-export async function listSurveys(): Promise<Survey[]> {
-  const store = await readStore();
-  return [...(store.surveys as Survey[])].sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt)
-  );
-}
-
-export async function getSurveyById(id: string): Promise<SurveyDetail | null> {
-  const store = await readStore();
-  const survey = (store.surveys as Survey[]).find((item) => item.id === id);
-  if (!survey) return null;
-  return buildSurveyDetail(store, survey);
-}
-
-export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null> {
-  const store = await readStore();
-  const survey = (store.surveys as Survey[]).find((item) => item.slug === slug);
-  if (!survey) return null;
-  return buildSurveyDetail(store, survey);
-}
-
-export async function deleteSurvey(surveyId: string): Promise<boolean> {
-  return mutateStore((store) => {
-    const surveys = store.surveys as Survey[];
-    const sections = store.sections as Section[];
-    const questions = store.questions as Question[];
-    const responses = store.responses as Response[];
-    const answers = store.answers as Answer[];
-
-    const survey = surveys.find((item) => item.id === surveyId);
-    if (!survey) return false;
-
-    const sectionIds = new Set(
-      sections
-        .filter((section) => section.surveyId === surveyId)
-        .map((section) => section.id)
-    );
-    const questionIds = new Set(
-      questions
-        .filter((question) => sectionIds.has(question.sectionId))
-        .map((question) => question.id)
-    );
-    const responseIds = new Set(
-      responses
-        .filter((response) => response.surveyId === surveyId)
-        .map((response) => response.id)
-    );
-
-    store.surveys = surveys.filter((item) => item.id !== surveyId);
-    store.sections = sections.filter((section) => section.surveyId !== surveyId);
-    store.questions = questions.filter(
-      (question) => !sectionIds.has(question.sectionId)
-    );
-    store.responses = responses.filter(
-      (response) => response.surveyId !== surveyId
-    );
-    store.answers = answers.filter(
-      (answer) =>
-        !responseIds.has(answer.responseId) &&
-        !questionIds.has(answer.questionId)
-    );
-
-    return true;
+function toQuestion(row: {
+  id: string;
+  sectionId: string;
+  title: string;
+  description: string | null;
+  type: string;
+  config: unknown;
+  sortOrder: number;
+}): Question {
+  return normalizeQuestion({
+    id: row.id,
+    sectionId: row.sectionId,
+    title: row.title,
+    description: row.description,
+    type: row.type as Question["type"],
+    config: row.config as QuestionConfig,
+    sortOrder: row.sortOrder,
   });
 }
 
-export async function createSurvey(input: CreateSurveyInput): Promise<SurveyDetail> {
-  return mutateStore((store) => {
-    const now = new Date().toISOString();
-    const id = nanoid(12);
-    const slug = uniqueSlug(store, input.title);
+function buildSurveyDetail(survey: SurveyWithRelations): SurveyDetail {
+  return {
+    ...toSurvey(survey),
+    sections: survey.sections.map((section) => ({
+      id: section.id,
+      surveyId: section.surveyId,
+      title: section.title,
+      description: section.description,
+      sortOrder: section.sortOrder,
+      questions: migrateLegacyQuestions(
+        section,
+        section.questions.map(toQuestion)
+      ),
+    })),
+  };
+}
 
-    const survey: Survey = {
+function normalizeResponse(response: {
+  id: string;
+  surveyId: string;
+  submittedAt: Date;
+  participantName: string | null;
+  gender: string | null;
+  ageGroup: string | null;
+}): Response {
+  return {
+    id: response.id,
+    surveyId: response.surveyId,
+    submittedAt: response.submittedAt.toISOString(),
+    participantName: response.participantName?.trim() || null,
+    gender: (response.gender as Response["gender"]) ?? null,
+    ageGroup: (response.ageGroup as Response["ageGroup"]) ?? null,
+  };
+}
+
+async function fetchSurveyDetail(id: string): Promise<SurveyDetail | null> {
+  const survey = await prisma.survey.findUnique({
+    where: { id },
+    include: surveyInclude,
+  });
+  if (!survey) return null;
+  return buildSurveyDetail(survey);
+}
+
+export async function listSurveys(): Promise<Survey[]> {
+  assertDatabaseConfigured();
+  const rows = await prisma.survey.findMany({
+    orderBy: { updatedAt: "desc" },
+  });
+  return rows.map(toSurvey);
+}
+
+export async function getSurveyById(id: string): Promise<SurveyDetail | null> {
+  assertDatabaseConfigured();
+  return fetchSurveyDetail(id);
+}
+
+export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null> {
+  assertDatabaseConfigured();
+  const survey = await prisma.survey.findUnique({
+    where: { slug },
+    include: surveyInclude,
+  });
+  if (!survey) return null;
+  return buildSurveyDetail(survey);
+}
+
+export async function deleteSurvey(surveyId: string): Promise<boolean> {
+  assertDatabaseConfigured();
+  const survey = await prisma.survey.findUnique({ where: { id: surveyId } });
+  if (!survey) return false;
+  await prisma.survey.delete({ where: { id: surveyId } });
+  return true;
+}
+
+export async function createSurvey(input: CreateSurveyInput): Promise<SurveyDetail> {
+  assertDatabaseConfigured();
+  const id = nanoid(12);
+  const slug = await uniqueSlug(input.title);
+  const sectionId = nanoid(12);
+  const questionId = nanoid(12);
+  const defaultQuestion = createDefaultQuestion(0);
+
+  await prisma.survey.create({
+    data: {
       id,
       title: input.title,
       slug,
       description: input.description ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const sectionId = nanoid(12);
-    const section: Section = {
-      id: sectionId,
-      surveyId: id,
-      title: "선호도 섹션",
-      description: null,
-      sortOrder: 0,
-    };
-
-    const defaultQuestion = createDefaultQuestion(0);
-    const question: Question = {
-      id: nanoid(12),
-      sectionId,
-      ...defaultQuestion,
-    };
-
-    (store.surveys as Survey[]).push(survey);
-    (store.sections as Section[]).push(section);
-    (store.questions as Question[]).push(question);
-
-    return buildSurveyDetail(store, survey);
+      sections: {
+        create: [
+          {
+            id: sectionId,
+            title: "선호도 섹션",
+            description: null,
+            sortOrder: 0,
+            questions: {
+              create: [
+                {
+                  id: questionId,
+                  title: defaultQuestion.title,
+                  description: defaultQuestion.description,
+                  type: defaultQuestion.type,
+                  config: defaultQuestion.config as unknown as Prisma.InputJsonValue,
+                  sortOrder: defaultQuestion.sortOrder,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
   });
+
+  const created = await fetchSurveyDetail(id);
+  if (!created) {
+    throw new Error("조사 생성 후 데이터를 불러오지 못했습니다.");
+  }
+  return created;
 }
 
 export async function updateSurveyContent(
   surveyId: string,
   input: UpdateSurveyContentInput
 ): Promise<SurveyDetail | null> {
-  return mutateStore((store) => {
-    const surveyIndex = store.surveys.findIndex((item) => item.id === surveyId);
-    if (surveyIndex === -1) return null;
+  assertDatabaseConfigured();
+  const existing = await prisma.survey.findUnique({ where: { id: surveyId } });
+  if (!existing) return null;
 
-    const now = new Date().toISOString();
-    const survey = store.surveys[surveyIndex];
+  await prisma.$transaction(async (tx) => {
+    await tx.survey.update({
+      where: { id: surveyId },
+      data: {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.description !== undefined
+          ? { description: input.description ?? null }
+          : {}),
+      },
+    });
 
-    if (input.title !== undefined) survey.title = input.title;
-    if (input.description !== undefined) {
-      survey.description = input.description ?? null;
-    }
-    survey.updatedAt = now;
-
-    const existingSectionIds = new Set(
-      store.sections
-        .filter((section) => section.surveyId === surveyId)
-        .map((section) => section.id)
-    );
+    const existingSections = await tx.section.findMany({
+      where: { surveyId },
+      select: { id: true },
+    });
+    const existingSectionIds = new Set(existingSections.map((s) => s.id));
     const incomingSectionIds = new Set<string>();
 
     for (const sectionInput of input.sections) {
       const sectionId = sectionInput.id ?? nanoid(12);
       incomingSectionIds.add(sectionId);
 
-      const existingSection = store.sections.find((item) => item.id === sectionId);
-      if (existingSection && existingSection.surveyId === surveyId) {
-        existingSection.title = sectionInput.title;
-        existingSection.description = sectionInput.description ?? null;
-        existingSection.sortOrder = sectionInput.sortOrder;
-      } else {
-        store.sections.push({
+      await tx.section.upsert({
+        where: { id: sectionId },
+        create: {
           id: sectionId,
           surveyId,
           title: sectionInput.title,
           description: sectionInput.description ?? null,
           sortOrder: sectionInput.sortOrder,
-        });
-      }
+        },
+        update: {
+          title: sectionInput.title,
+          description: sectionInput.description ?? null,
+          sortOrder: sectionInput.sortOrder,
+        },
+      });
 
-      const existingQuestionIds = new Set(
-        store.questions
-          .filter((question) => question.sectionId === sectionId)
-          .map((question) => question.id)
-      );
+      const existingQuestions = await tx.question.findMany({
+        where: { sectionId },
+        select: { id: true },
+      });
+      const existingQuestionIds = new Set(existingQuestions.map((q) => q.id));
       const incomingQuestionIds = new Set<string>();
 
       for (const questionInput of sectionInput.questions) {
@@ -241,88 +286,101 @@ export async function updateSurveyContent(
           sortOrder: questionInput.sortOrder,
         });
 
-        const existingQuestion = store.questions.find(
-          (item) => item.id === questionId
-        );
-
-        if (existingQuestion && existingQuestion.sectionId === sectionId) {
-          Object.assign(existingQuestion, normalized);
-        } else {
-          store.questions.push(normalized);
-        }
+        await tx.question.upsert({
+          where: { id: questionId },
+          create: {
+            id: questionId,
+            sectionId,
+            title: normalized.title,
+            description: normalized.description,
+            type: normalized.type,
+            config: normalized.config as unknown as Prisma.InputJsonValue,
+            sortOrder: normalized.sortOrder,
+          },
+          update: {
+            title: normalized.title,
+            description: normalized.description,
+            type: normalized.type,
+            config: normalized.config as unknown as Prisma.InputJsonValue,
+            sortOrder: normalized.sortOrder,
+          },
+        });
       }
 
-      for (const questionId of existingQuestionIds) {
-        if (!incomingQuestionIds.has(questionId)) {
-          store.questions = store.questions.filter(
-            (question) => question.id !== questionId
-          );
-          store.answers = store.answers.filter(
-            (answer) => answer.questionId !== questionId
-          );
-        }
-      }
-    }
-
-    for (const sectionId of existingSectionIds) {
-      if (!incomingSectionIds.has(sectionId)) {
-        const removedQuestionIds = new Set(
-          store.questions
-            .filter((question) => question.sectionId === sectionId)
-            .map((question) => question.id)
-        );
-
-        store.sections = store.sections.filter(
-          (section) => section.id !== sectionId
-        );
-        store.questions = store.questions.filter(
-          (question) => question.sectionId !== sectionId
-        );
-        store.answers = store.answers.filter(
-          (answer) => !removedQuestionIds.has(answer.questionId)
-        );
+      const removedQuestionIds = [...existingQuestionIds].filter(
+        (id) => !incomingQuestionIds.has(id)
+      );
+      if (removedQuestionIds.length > 0) {
+        await tx.answer.deleteMany({
+          where: { questionId: { in: removedQuestionIds } },
+        });
+        await tx.question.deleteMany({
+          where: { id: { in: removedQuestionIds } },
+        });
       }
     }
 
-    return buildSurveyDetail(store, survey);
+    const removedSectionIds = [...existingSectionIds].filter(
+      (id) => !incomingSectionIds.has(id)
+    );
+    if (removedSectionIds.length > 0) {
+      const removedQuestions = await tx.question.findMany({
+        where: { sectionId: { in: removedSectionIds } },
+        select: { id: true },
+      });
+      const removedQuestionIds = removedQuestions.map((q) => q.id);
+      if (removedQuestionIds.length > 0) {
+        await tx.answer.deleteMany({
+          where: { questionId: { in: removedQuestionIds } },
+        });
+        await tx.question.deleteMany({
+          where: { id: { in: removedQuestionIds } },
+        });
+      }
+      await tx.section.deleteMany({ where: { id: { in: removedSectionIds } } });
+    }
   });
+
+  return fetchSurveyDetail(surveyId);
 }
 
 export async function submitResponse(
   surveyId: string,
   input: SubmitResponseInput
 ): Promise<Response | null> {
-  return mutateStore((store) => {
-    const surveys = store.surveys as Survey[];
-    const responses = store.responses as Response[];
-    const answers = store.answers as Answer[];
+  assertDatabaseConfigured();
+  const survey = await prisma.survey.findUnique({ where: { id: surveyId } });
+  if (!survey) return null;
 
-    const survey = surveys.find((item) => item.id === surveyId);
-    if (!survey) return null;
+  const responseId = nanoid(12);
 
-    const now = new Date().toISOString();
-    const response: Response = {
-      id: nanoid(12),
-      surveyId,
-      submittedAt: now,
-      participantName: input.participantName.trim(),
-      gender: input.gender,
-      ageGroup: input.ageGroup,
-    };
+  const response = await prisma.$transaction(async (tx) => {
+    const created = await tx.response.create({
+      data: {
+        id: responseId,
+        surveyId,
+        participantName: input.participantName.trim(),
+        gender: input.gender,
+        ageGroup: input.ageGroup,
+        answers: {
+          create: input.answers.map((answer) => ({
+            id: nanoid(12),
+            questionId: answer.questionId,
+            value: answer.value,
+          })),
+        },
+      },
+    });
 
-    const newAnswers: Answer[] = input.answers.map((answer) => ({
-      id: nanoid(12),
-      responseId: response.id,
-      questionId: answer.questionId,
-      value: answer.value,
-    }));
+    await tx.survey.update({
+      where: { id: surveyId },
+      data: { updatedAt: new Date() },
+    });
 
-    responses.push(response);
-    answers.push(...newAnswers);
-    survey.updatedAt = now;
-
-    return response;
+    return created;
   });
+
+  return normalizeResponse(response);
 }
 
 export async function getDashboardStats(
@@ -331,79 +389,78 @@ export async function getDashboardStats(
   const survey = await getSurveyById(surveyId);
   if (!survey) return null;
 
-  const store = await readStore();
-  const responses = (store.responses as Response[])
-    .filter((response) => response.surveyId === surveyId)
-    .map(normalizeResponse);
-  const responseIds = new Set(responses.map((response) => response.id));
-  const answerList = (store.answers as Answer[]).filter((answer) =>
-    responseIds.has(answer.responseId)
+  const rows = await prisma.response.findMany({
+    where: { surveyId },
+    include: { answers: true },
+    orderBy: { submittedAt: "desc" },
+  });
+
+  const responses = rows.map(normalizeResponse);
+  const answerList: Answer[] = rows.flatMap((row) =>
+    row.answers.map((answer) => ({
+      id: answer.id,
+      responseId: answer.responseId,
+      questionId: answer.questionId,
+      value: answer.value,
+    }))
   );
 
   return computeDashboardStats(survey, responses, answerList);
 }
 
 export async function listResponses(surveyId: string): Promise<Response[]> {
-  const store = await readStore();
-  return (store.responses as Response[])
-    .filter((response) => response.surveyId === surveyId)
-    .map(normalizeResponse)
-    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  assertDatabaseConfigured();
+  const rows = await prisma.response.findMany({
+    where: { surveyId },
+    orderBy: { submittedAt: "desc" },
+  });
+  return rows.map(normalizeResponse);
 }
 
 export async function deleteResponse(
   surveyId: string,
   responseId: string
 ): Promise<boolean> {
-  return mutateStore((store) => {
-    const exists = store.responses.some(
-      (item) => item.id === responseId && item.surveyId === surveyId
-    );
-    if (!exists) return false;
-
-    store.responses = store.responses.filter((item) => item.id !== responseId);
-    store.answers = store.answers.filter(
-      (answer) => answer.responseId !== responseId
-    );
-
-    const survey = store.surveys.find((item) => item.id === surveyId);
-    if (survey) {
-      survey.updatedAt = new Date().toISOString();
-    }
-
-    return true;
+  assertDatabaseConfigured();
+  const response = await prisma.response.findFirst({
+    where: { id: responseId, surveyId },
   });
+  if (!response) return false;
+
+  await prisma.$transaction([
+    prisma.response.delete({ where: { id: responseId } }),
+    prisma.survey.update({
+      where: { id: surveyId },
+      data: { updatedAt: new Date() },
+    }),
+  ]);
+
+  return true;
 }
 
 export async function deleteAllResponses(surveyId: string): Promise<number> {
-  return mutateStore((store) => {
-    const responseIds = new Set(
-      store.responses
-        .filter((response) => response.surveyId === surveyId)
-        .map((response) => response.id)
-    );
+  assertDatabaseConfigured();
+  const count = await prisma.response.count({ where: { surveyId } });
+  if (count === 0) return 0;
 
-    if (responseIds.size === 0) return 0;
+  await prisma.$transaction([
+    prisma.response.deleteMany({ where: { surveyId } }),
+    prisma.survey.update({
+      where: { id: surveyId },
+      data: { updatedAt: new Date() },
+    }),
+  ]);
 
-    store.responses = store.responses.filter(
-      (response) => response.surveyId !== surveyId
-    );
-    store.answers = store.answers.filter(
-      (answer) => !responseIds.has(answer.responseId)
-    );
-
-    const survey = store.surveys.find((item) => item.id === surveyId);
-    if (survey) {
-      survey.updatedAt = new Date().toISOString();
-    }
-
-    return responseIds.size;
-  });
+  return count;
 }
 
 export async function getAnswersForResponse(responseId: string): Promise<Answer[]> {
-  const store = await readStore();
-  return (store.answers as Answer[]).filter(
-    (answer) => answer.responseId === responseId
-  );
+  assertDatabaseConfigured();
+  const rows = await prisma.answer.findMany({ where: { responseId } });
+  return rows.map((answer) => ({
+    id: answer.id,
+    responseId: answer.responseId,
+    questionId: answer.questionId,
+    value: answer.value,
+  }));
 }
