@@ -47,15 +47,25 @@ export function getStorageStatus(): StorageStatus {
   return "file";
 }
 
-function blobAccessMode(): BlobAccessType {
+function blobAccessModes(): BlobAccessType[] {
   const configured = process.env.BLOB_STORE_ACCESS;
-  if (configured === "public") return "public";
-  return "private";
+  if (configured === "public") return ["public"];
+  if (configured === "private") return ["private"];
+  return ["public", "private"];
 }
 
-function blobPutOptions() {
+function isBlobAccessMismatch(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /private access on a public store|public access on a private store/i.test(
+      error.message
+    )
+  );
+}
+
+function blobPutOptions(access: BlobAccessType) {
   return {
-    access: blobAccessMode(),
+    access,
     allowOverwrite: true as const,
     contentType: "application/json",
     addRandomSuffix: false as const,
@@ -64,9 +74,9 @@ function blobPutOptions() {
   };
 }
 
-function blobGetOptions() {
+function blobGetOptions(access: BlobAccessType) {
   return {
-    access: blobAccessMode(),
+    access,
     useCache: false as const,
     token: process.env.BLOB_READ_WRITE_TOKEN,
     storeId: process.env.BLOB_STORE_ID,
@@ -140,36 +150,56 @@ async function writeKvStore(store: Store): Promise<void> {
 async function readBlobStoreOnce(): Promise<Store | null> {
   if (!isBlobStorageEnabled()) return null;
 
-  try {
-    const result = await get(BLOB_PATH, blobGetOptions());
-    if (!result || result.statusCode !== 200 || !result.stream) {
-      return null;
+  for (const access of blobAccessModes()) {
+    try {
+      const result = await get(BLOB_PATH, blobGetOptions(access));
+      if (!result || result.statusCode !== 200 || !result.stream) {
+        continue;
+      }
+
+      const raw = await new Response(result.stream).text();
+      if (!raw.trim()) continue;
+
+      const parsed = parseStoreJson(raw);
+      if (parsed.surveys.length > 0) {
+        return parsed;
+      }
+    } catch (error) {
+      if (!isBlobAccessMismatch(error)) {
+        console.warn(`[store] Blob read failed (${access}):`, error);
+      }
     }
-
-    const raw = await new Response(result.stream).text();
-    if (!raw.trim()) return null;
-
-    const store = parseStoreJson(raw);
-    return store.surveys.length > 0 ? store : null;
-  } catch (error) {
-    console.warn("[store] Blob read failed:", error);
-    return null;
   }
+
+  return null;
 }
 
 async function writeBlobStoreOnce(store: Store): Promise<void> {
   const payload = JSON.stringify(store);
+  let lastError: unknown;
 
-  try {
-    await put(BLOB_PATH, payload, blobPutOptions());
-  } catch (error) {
-    if (error instanceof BlobServiceRateLimited) {
-      await sleep(error.retryAfter * 1000);
-      await put(BLOB_PATH, payload, blobPutOptions());
+  for (const access of blobAccessModes()) {
+    try {
+      await put(BLOB_PATH, payload, blobPutOptions(access));
       return;
+    } catch (error) {
+      lastError = error;
+
+      if (error instanceof BlobServiceRateLimited) {
+        await sleep(error.retryAfter * 1000);
+        await put(BLOB_PATH, payload, blobPutOptions(access));
+        return;
+      }
+
+      if (isBlobAccessMismatch(error)) {
+        continue;
+      }
+
+      throw error;
     }
-    throw error;
   }
+
+  throw lastError ?? new Error("Blob write failed");
 }
 
 export function parseStoreJson(raw: string): Store {

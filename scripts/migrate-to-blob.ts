@@ -41,8 +41,11 @@ async function main() {
     }
   }
 
+  const access =
+    process.env.BLOB_STORE_ACCESS === "private" ? "private" : "public";
+
   await put(BLOB_PATH, raw, {
-    access: "private",
+    access,
     allowOverwrite: true,
     contentType: "application/json",
     addRandomSuffix: false,
