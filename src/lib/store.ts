@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 import { BlobServiceRateLimited, get, put, type BlobAccessType } from "@vercel/blob";
 import seedData from "../../scripts/seed-store.json";
 import type { Answer, Question, Response, Section, Survey } from "./types";
@@ -26,25 +26,54 @@ export const emptyStore = (): Store => ({
   answers: [],
 });
 
+type PrimaryBackend = "kv" | "blob" | "file";
+
+let redisClient: Redis | null = null;
+
+function getRedis(): Redis | null {
+  if (redisClient) return redisClient;
+
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    redisClient = new Redis({
+      url: process.env.KV_REST_API_URL,
+      token: process.env.KV_REST_API_TOKEN,
+    });
+    return redisClient;
+  }
+
+  if (
+    process.env.UPSTASH_REDIS_REST_URL &&
+    process.env.UPSTASH_REDIS_REST_TOKEN
+  ) {
+    redisClient = Redis.fromEnv();
+    return redisClient;
+  }
+
+  return null;
+}
+
 function isKvStorageEnabled(): boolean {
-  return Boolean(
-    process.env.KV_REST_API_URL ||
-      process.env.KV_URL ||
-      process.env.UPSTASH_REDIS_REST_URL
-  );
+  return getRedis() !== null;
 }
 
 function isBlobStorageEnabled(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 }
 
+function getPrimaryBackend(): PrimaryBackend {
+  if (isKvStorageEnabled()) return "kv";
+  if (isBlobStorageEnabled()) return "blob";
+  return "file";
+}
+
 export type StorageStatus = "kv" | "blob" | "file" | "vercel-missing-blob";
 
 export function getStorageStatus(): StorageStatus {
-  if (isKvStorageEnabled()) return "kv";
-  if (isBlobStorageEnabled()) return "blob";
-  if (process.env.VERCEL === "1") return "vercel-missing-blob";
-  return "file";
+  const primary = getPrimaryBackend();
+  if (primary === "file" && process.env.VERCEL === "1") {
+    return "vercel-missing-blob";
+  }
+  return primary;
 }
 
 function blobAccessModes(): BlobAccessType[] {
@@ -121,22 +150,23 @@ function writeFileStore(store: Store): void {
 }
 
 async function readKvStore(): Promise<Store | null> {
-  if (!isKvStorageEnabled()) return null;
+  const redis = getRedis();
+  if (!redis) return null;
 
-  try {
-    const data = await kv.get<Store>(KV_STORE_KEY);
-    if (!data || !Array.isArray(data.surveys) || data.surveys.length === 0) {
-      return null;
-    }
-    return parseStoreJson(JSON.stringify(data));
-  } catch (error) {
-    console.warn("[store] KV read failed:", error);
+  const data = await redis.get<Store>(KV_STORE_KEY);
+  if (data === null || data === undefined) {
     return null;
   }
+
+  return parseStoreJson(JSON.stringify(data));
 }
 
 async function writeKvStore(store: Store): Promise<void> {
-  await kv.set(KV_STORE_KEY, store);
+  const redis = getRedis();
+  if (!redis) {
+    throw new Error("KV 저장소가 연결되지 않았습니다.");
+  }
+  await redis.set(KV_STORE_KEY, store);
 }
 
 async function readBlobStoreOnce(): Promise<Store | null> {
@@ -152,10 +182,7 @@ async function readBlobStoreOnce(): Promise<Store | null> {
       const raw = await new Response(result.stream).text();
       if (!raw.trim()) continue;
 
-      const parsed = parseStoreJson(raw);
-      if (parsed.surveys.length > 0) {
-        return parsed;
-      }
+      return parseStoreJson(raw);
     } catch (error) {
       if (!isBlobAccessMismatch(error)) {
         console.warn(`[store] Blob read failed (${access}):`, error);
@@ -205,33 +232,56 @@ export function parseStoreJson(raw: string): Store {
   };
 }
 
-async function loadBestAvailableStore(): Promise<Store> {
-  if (isKvStorageEnabled()) {
+async function migrateKvFromLegacySources(): Promise<Store> {
+  const blobStore = await readBlobStoreOnce();
+  if (blobStore) {
+    await writeKvStore(blobStore);
+    return blobStore;
+  }
+
+  const seed = readSeedStore();
+  if (seed.surveys.length > 0) {
+    await writeKvStore(seed);
+    return seed;
+  }
+
+  const empty = emptyStore();
+  await writeKvStore(empty);
+  return empty;
+}
+
+async function migrateBlobFromLegacySources(): Promise<Store> {
+  const seed = readSeedStore();
+  if (seed.surveys.length > 0) {
+    await writeBlobStoreOnce(seed);
+    return seed;
+  }
+
+  const empty = emptyStore();
+  await writeBlobStoreOnce(empty);
+  return empty;
+}
+
+async function readPrimaryStore(): Promise<Store> {
+  const primary = getPrimaryBackend();
+
+  if (primary === "file") {
+    return readFileStore();
+  }
+
+  if (primary === "kv") {
     const kvStore = await readKvStore();
     if (kvStore) return kvStore;
+    return migrateKvFromLegacySources();
   }
 
   const blobStore = await readBlobStoreOnce();
   if (blobStore) return blobStore;
-
-  const seed = readSeedStore();
-  if (seed.surveys.length > 0) return seed;
-
-  return emptyStore();
+  return migrateBlobFromLegacySources();
 }
 
 export async function readStore(): Promise<Store> {
-  if (!isKvStorageEnabled() && !isBlobStorageEnabled()) {
-    return readFileStore();
-  }
-
-  try {
-    return await loadBestAvailableStore();
-  } catch (error) {
-    console.error("[store] readStore failed, using seed backup:", error);
-    const seed = readSeedStore();
-    return seed.surveys.length > 0 ? seed : emptyStore();
-  }
+  return readPrimaryStore();
 }
 
 export async function restoreStoreFromSeed(): Promise<Store> {
@@ -245,36 +295,32 @@ export async function restoreStoreFromSeed(): Promise<Store> {
 }
 
 export async function writeStore(store: Store): Promise<void> {
-  if (!isKvStorageEnabled() && !isBlobStorageEnabled()) {
+  const primary = getPrimaryBackend();
+
+  if (primary === "file") {
     writeFileStore(store);
     return;
   }
 
-  if (isKvStorageEnabled()) {
+  if (primary === "kv") {
     await writeKvStore(store);
-  } else if (isBlobStorageEnabled()) {
-    await writeBlobStoreOnce(store);
     return;
   }
 
-  if (isBlobStorageEnabled()) {
-    try {
-      await writeBlobStoreOnce(store);
-    } catch (error) {
-      console.warn("[store] Blob mirror write failed:", error);
-    }
-  }
+  await writeBlobStoreOnce(store);
 }
 
 export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
-  if (!isKvStorageEnabled() && !isBlobStorageEnabled()) {
+  const primary = getPrimaryBackend();
+
+  if (primary === "file") {
     const store = await readFileStore();
     const result = fn(store);
     writeFileStore(store);
     return result;
   }
 
-  const store = cloneStore(await readStore());
+  const store = cloneStore(await readPrimaryStore());
   const result = fn(store);
   await writeStore(store);
   return result;

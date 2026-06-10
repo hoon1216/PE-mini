@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     return jsonNoStore(survey, { status: 201 });
   } catch (error) {
     console.error("POST /api/surveys failed:", error);
-    return jsonNoStore({ error: "조사 생성에 실패했습니다." }, { status: 500 });
+    const { formatStoreError } = await import("@/lib/store-errors");
+    return jsonNoStore({ error: formatStoreError(error) }, { status: 500 });
   }
 }

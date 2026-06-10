@@ -37,13 +37,19 @@ export async function POST(request: Request, { params }: Params) {
     return jsonNoStore({ error: "답변을 입력해주세요." }, { status: 400 });
   }
 
-  const response = await submitResponse(id, body);
+  try {
+    const response = await submitResponse(id, body);
 
-  if (!response) {
-    return jsonNoStore({ error: "조사를 찾을 수 없습니다." }, { status: 404 });
+    if (!response) {
+      return jsonNoStore({ error: "조사를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    return jsonNoStore(response, { status: 201 });
+  } catch (error) {
+    console.error("POST /api/surveys/[id]/responses failed:", error);
+    const { formatStoreError } = await import("@/lib/store-errors");
+    return jsonNoStore({ error: formatStoreError(error) }, { status: 500 });
   }
-
-  return jsonNoStore(response, { status: 201 });
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
