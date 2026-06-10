@@ -81,6 +81,19 @@ function cloneStore(store: Store): Store {
   return parseStoreJson(JSON.stringify(store));
 }
 
+function storeScore(store: Store): number {
+  return store.surveys.length * 1_000_000 + store.responses.length;
+}
+
+function pickBestStore(candidates: Store[]): Store | null {
+  const valid = candidates.filter((store) => store.surveys.length > 0);
+  if (valid.length === 0) return null;
+
+  return valid.reduce((best, current) =>
+    storeScore(current) > storeScore(best) ? current : best
+  );
+}
+
 function ensureFileStore(): void {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(STORE_PATH)) {
@@ -106,9 +119,13 @@ function writeFileStore(store: Store): void {
 }
 
 async function readKvStore(): Promise<Store | null> {
+  if (!isKvStorageEnabled()) return null;
+
   try {
     const data = await kv.get<Store>(KV_STORE_KEY);
-    if (!data || !Array.isArray(data.surveys)) return null;
+    if (!data || !Array.isArray(data.surveys) || data.surveys.length === 0) {
+      return null;
+    }
     return parseStoreJson(JSON.stringify(data));
   } catch (error) {
     console.warn("[store] KV read failed:", error);
@@ -131,7 +148,9 @@ async function readBlobStoreOnce(): Promise<Store | null> {
 
     const raw = await new Response(result.stream).text();
     if (!raw.trim()) return null;
-    return parseStoreJson(raw);
+
+    const store = parseStoreJson(raw);
+    return store.surveys.length > 0 ? store : null;
   } catch (error) {
     console.warn("[store] Blob read failed:", error);
     return null;
@@ -164,44 +183,35 @@ export function parseStoreJson(raw: string): Store {
   };
 }
 
-async function restoreFromSeed(): Promise<Store> {
+async function loadBestAvailableStore(): Promise<Store> {
+  const [kvStore, blobStore] = await Promise.all([
+    readKvStore(),
+    readBlobStoreOnce(),
+  ]);
+  const seedStore = readSeedStore();
+
+  const best = pickBestStore(
+    [kvStore, blobStore, seedStore].filter((store): store is Store => store !== null)
+  );
+
+  if (best) return best;
+
   const seed = readSeedStore();
-  if (seed.surveys.length === 0) {
-    return emptyStore();
-  }
-
-  await writeStore(seed);
-  return seed;
-}
-
-async function migrateToKvFromBlobOrSeed(): Promise<Store> {
-  const blobStore = await readBlobStoreOnce();
-  if (blobStore?.surveys.length) {
-    await writeKvStore(blobStore);
-    return blobStore;
-  }
-
-  return restoreFromSeed();
+  return seed.surveys.length > 0 ? seed : emptyStore();
 }
 
 export async function readStore(): Promise<Store> {
-  if (isKvStorageEnabled()) {
-    const kvStore = await readKvStore();
-    if (kvStore?.surveys.length) {
-      return kvStore;
-    }
-    return migrateToKvFromBlobOrSeed();
+  if (!isKvStorageEnabled() && !isBlobStorageEnabled()) {
+    return readFileStore();
   }
 
-  if (isBlobStorageEnabled()) {
-    const blobStore = await readBlobStoreOnce();
-    if (blobStore?.surveys.length) {
-      return blobStore;
-    }
-    return restoreFromSeed();
+  try {
+    return await loadBestAvailableStore();
+  } catch (error) {
+    console.error("[store] readStore failed, using seed backup:", error);
+    const seed = readSeedStore();
+    return seed.surveys.length > 0 ? seed : emptyStore();
   }
-
-  return readFileStore();
 }
 
 export async function restoreStoreFromSeed(): Promise<Store> {
@@ -215,17 +225,37 @@ export async function restoreStoreFromSeed(): Promise<Store> {
 }
 
 export async function writeStore(store: Store): Promise<void> {
-  if (isKvStorageEnabled()) {
-    await writeKvStore(store);
+  if (!isKvStorageEnabled() && !isBlobStorageEnabled()) {
+    writeFileStore(store);
     return;
+  }
+
+  const errors: unknown[] = [];
+
+  if (isKvStorageEnabled()) {
+    try {
+      await writeKvStore(store);
+    } catch (error) {
+      errors.push(error);
+      console.warn("[store] KV write failed:", error);
+    }
   }
 
   if (isBlobStorageEnabled()) {
-    await writeBlobStoreOnce(store);
-    return;
+    try {
+      await writeBlobStoreOnce(store);
+    } catch (error) {
+      errors.push(error);
+      console.warn("[store] Blob write failed:", error);
+    }
   }
 
-  writeFileStore(store);
+  const expectedWrites =
+    (isKvStorageEnabled() ? 1 : 0) + (isBlobStorageEnabled() ? 1 : 0);
+
+  if (errors.length >= expectedWrites) {
+    throw errors[0] ?? new Error("All storage writes failed");
+  }
 }
 
 export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
