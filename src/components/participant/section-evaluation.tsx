@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { SectionQuestions } from "@/components/participant/section-questions";
 import { Button } from "@/components/ui/button";
 import { fetchJson } from "@/lib/fetch-json";
+import type { RankingAnswer } from "@/lib/ranking-utils";
 import {
   getOrCreateDraft,
   saveDraft,
@@ -23,9 +24,7 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
   const router = useRouter();
   const [survey, setSurvey] = useState<SurveyDetail | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
-  const [rankings, setRankings] = useState<
-    Record<string, { rank1: string; rank2: string }>
-  >({});
+  const [rankings, setRankings] = useState<Record<string, RankingAnswer>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -48,17 +47,19 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
 
   function setRanking(
     questionId: string,
-    field: "rank1" | "rank2",
+    field: "rank1" | "rank2" | "rank3",
     value: string
   ) {
-    setRankings((prev) => ({
-      ...prev,
-      [questionId]: {
-        rank1: prev[questionId]?.rank1 ?? "",
-        rank2: prev[questionId]?.rank2 ?? "",
-        [field]: value,
-      },
-    }));
+    setRankings((prev) => {
+      const current = prev[questionId] ?? { rank1: "", rank2: "", rank3: "" };
+      const next = { ...current, [field]: value };
+
+      if (field === "rank1" && value === current.rank2) next.rank2 = "";
+      if (field === "rank1" && value === current.rank3) next.rank3 = "";
+      if (field === "rank2" && value === current.rank3) next.rank3 = "";
+
+      return { ...prev, [questionId]: next };
+    });
   }
 
   function handleSave() {

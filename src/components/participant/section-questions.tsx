@@ -1,12 +1,26 @@
 "use client";
 
 import { ScoreSlider } from "@/components/participant/score-slider";
+import {
+  availableCombinationsForRank,
+  emptyRankingAnswer,
+  maxRankingSlots,
+  normalizeRankingAnswer,
+  type RankingAnswer,
+  type RankingField,
+} from "@/lib/ranking-utils";
 import type {
   Question,
   RankingQuestionConfig,
   ScoreQuestionConfig,
   Section,
 } from "@/lib/types";
+
+const RANK_LABELS: Record<RankingField, string> = {
+  rank1: "1순위",
+  rank2: "2순위",
+  rank3: "3순위",
+};
 
 function groupScoreQuestionsByCategory(
   questions: Question[]
@@ -29,11 +43,11 @@ function groupScoreQuestionsByCategory(
 interface SectionQuestionsProps {
   section: Section & { questions: Question[] };
   scores: Record<string, string>;
-  rankings: Record<string, { rank1: string; rank2: string }>;
+  rankings: Record<string, RankingAnswer>;
   onScoreChange: (questionId: string, score: number) => void;
   onRankingChange: (
     questionId: string,
-    field: "rank1" | "rank2",
+    field: RankingField,
     value: string
   ) => void;
 }
@@ -85,50 +99,47 @@ export function SectionQuestions({
 
       {rankingQuestions.map((question) => {
         const config = question.config as RankingQuestionConfig;
-        const ranking = rankings[question.id] ?? { rank1: "", rank2: "" };
+        const ranking = normalizeRankingAnswer(
+          rankings[question.id] ?? emptyRankingAnswer()
+        );
+        const rankFields: RankingField[] = Array.from(
+          { length: maxRankingSlots(config.combinations.length) },
+          (_, index) => (index === 0 ? "rank1" : index === 1 ? "rank2" : "rank3")
+        );
 
         return (
           <div key={question.id} className="space-y-4">
             <p className="text-sm font-medium">
               {question.title !== "순위 문항" ? question.title : "순위 선정"}
             </p>
-            <p className="text-xs text-muted">순위 선정형</p>
-            <div>
-              <label className="mb-1 block text-sm font-medium">1순위</label>
-              <select
-                value={ranking.rank1}
-                onChange={(e) =>
-                  onRankingChange(question.id, "rank1", e.target.value)
-                }
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
-              >
-                <option value="">선택</option>
-                {config.combinations.map((combo) => (
-                  <option key={combo} value={combo}>
-                    {combo}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">2순위</label>
-              <select
-                value={ranking.rank2}
-                onChange={(e) =>
-                  onRankingChange(question.id, "rank2", e.target.value)
-                }
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
-              >
-                <option value="">선택</option>
-                {config.combinations
-                  .filter((combo) => combo !== ranking.rank1)
-                  .map((combo) => (
+            <p className="text-xs text-muted">
+              순위 선정형 ({rankFields.length}순위까지 선택)
+            </p>
+            {rankFields.map((field) => (
+              <div key={field}>
+                <label className="mb-1 block text-sm font-medium">
+                  {RANK_LABELS[field]}
+                </label>
+                <select
+                  value={ranking[field] ?? ""}
+                  onChange={(e) =>
+                    onRankingChange(question.id, field, e.target.value)
+                  }
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                >
+                  <option value="">선택</option>
+                  {availableCombinationsForRank(
+                    config.combinations,
+                    ranking,
+                    field
+                  ).map((combo) => (
                     <option key={combo} value={combo}>
                       {combo}
                     </option>
                   ))}
-              </select>
-            </div>
+                </select>
+              </div>
+            ))}
           </div>
         );
       })}

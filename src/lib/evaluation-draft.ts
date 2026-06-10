@@ -1,7 +1,14 @@
+import {
+  normalizeRankingAnswer,
+  serializeRankingAnswer,
+  validateRankingAnswer,
+  type RankingAnswer,
+} from "./ranking-utils";
 import type {
   AgeGroup,
   Gender,
   Question,
+  RankingQuestionConfig,
   Section,
   SurveyDetail,
 } from "./types";
@@ -13,7 +20,7 @@ export interface EvaluationDraft {
   ageGroup: AgeGroup | "";
   completedSectionIds: string[];
   scores: Record<string, string>;
-  rankings: Record<string, { rank1: string; rank2: string }>;
+  rankings: Record<string, RankingAnswer>;
 }
 
 function draftKey(surveyId: string): string {
@@ -68,7 +75,7 @@ export function sectionHasQuestions(
 export function validateSectionAnswers(
   section: Section & { questions: Question[] },
   scores: Record<string, string>,
-  rankings: Record<string, { rank1: string; rank2: string }>
+  rankings: Record<string, RankingAnswer>
 ): string | null {
   for (const question of section.questions) {
     if (question.type === "score") {
@@ -76,13 +83,12 @@ export function validateSectionAnswers(
         return "모든 항목의 점수를 선택해주세요.";
       }
     } else if (question.type === "ranking") {
-      const ranking = rankings[question.id];
-      if (!ranking?.rank1 || !ranking?.rank2) {
-        return "순위를 모두 선택해주세요.";
-      }
-      if (ranking.rank1 === ranking.rank2) {
-        return "1순위와 2순위는 달라야 합니다.";
-      }
+      const config = question.config as RankingQuestionConfig;
+      const rankingError = validateRankingAnswer(
+        rankings[question.id],
+        config.combinations.length
+      );
+      if (rankingError) return rankingError;
     }
   }
 
@@ -125,13 +131,14 @@ export function buildSubmitPayload(
           value: draft.scores[question.id] ?? "3",
         });
       } else if (question.type === "ranking") {
-        const ranking = draft.rankings[question.id];
+        const config = question.config as RankingQuestionConfig;
+        const ranking = normalizeRankingAnswer(draft.rankings[question.id]);
         answers.push({
           questionId: question.id,
-          value: JSON.stringify({
-            rank1: ranking?.rank1 ?? "",
-            rank2: ranking?.rank2 ?? "",
-          }),
+          value: serializeRankingAnswer(
+            ranking,
+            config.combinations.length
+          ),
         });
       }
     }
