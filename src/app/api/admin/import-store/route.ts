@@ -1,11 +1,27 @@
 import { NextResponse } from "next/server";
-import { isCloudStorage, parseStoreJson, replaceStore } from "@/lib/store";
+import { getStorageStatus, parseStoreJson, replaceStore } from "@/lib/store";
 
 export const runtime = "nodejs";
 
+const BLOB_SETUP_MESSAGE =
+  "Vercel Blob이 연결되지 않았습니다. Vercel 대시보드 → Storage → Blob → Create → 프로젝트(PE-mini)에 Connect → Redeploy 후 다시 시도해주세요.";
+
+export async function GET() {
+  const status = getStorageStatus();
+  return NextResponse.json({
+    status,
+    blobReady: status === "blob",
+    hasImportKey: Boolean(process.env.DATA_IMPORT_KEY?.trim()),
+  });
+}
+
 export async function POST(request: Request) {
   try {
-    if (!isCloudStorage()) {
+    const storageStatus = getStorageStatus();
+    if (storageStatus === "vercel-missing-blob") {
+      return NextResponse.json({ error: BLOB_SETUP_MESSAGE }, { status: 503 });
+    }
+    if (storageStatus === "file") {
       return NextResponse.json(
         { error: "클라우드 저장소(Blob) 환경에서만 사용할 수 있습니다." },
         { status: 400 }

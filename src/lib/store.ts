@@ -24,7 +24,15 @@ export const emptyStore = (): Store => ({
 });
 
 function isBlobStorageEnabled(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
+}
+
+export type StorageStatus = "blob" | "file" | "vercel-missing-blob";
+
+export function getStorageStatus(): StorageStatus {
+  if (isBlobStorageEnabled()) return "blob";
+  if (process.env.VERCEL === "1") return "vercel-missing-blob";
+  return "file";
 }
 
 function blobAccessModes(): BlobAccessType[] {
@@ -150,5 +158,5 @@ export async function replaceStore(store: Store): Promise<Store> {
 }
 
 export function isCloudStorage(): boolean {
-  return isBlobStorageEnabled();
+  return getStorageStatus() === "blob";
 }
