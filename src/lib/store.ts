@@ -76,6 +76,14 @@ export function getStorageStatus(): StorageStatus {
   return primary;
 }
 
+function assertWritableStorage(): void {
+  if (getStorageStatus() === "vercel-missing-blob") {
+    throw new Error(
+      "Vercel에 영구 저장소(KV 또는 Blob)가 연결되지 않았습니다. Vercel 대시보드 → Storage에서 Redis 또는 Blob을 연결해 주세요."
+    );
+  }
+}
+
 function blobAccessModes(): BlobAccessType[] {
   const configured = process.env.BLOB_STORE_ACCESS;
   if (configured === "public") return ["public"];
@@ -295,6 +303,7 @@ export async function restoreStoreFromSeed(): Promise<Store> {
 }
 
 export async function writeStore(store: Store): Promise<void> {
+  assertWritableStorage();
   const primary = getPrimaryBackend();
 
   if (primary === "file") {

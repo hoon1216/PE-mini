@@ -38,7 +38,12 @@ export function SurveyList() {
 
     try {
       await fetchJson(`/api/surveys/${survey.id}`, { method: "DELETE" });
-      setSurveys((prev) => prev.filter((item) => item.id !== survey.id));
+      const refreshed = await loadSurveys();
+      if (refreshed.some((item) => item.id === survey.id)) {
+        throw new Error(
+          "삭제는 완료됐지만 목록이 아직 갱신되지 않았습니다. 잠시 후 새로고침해 주세요."
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "삭제에 실패했습니다.");
     } finally {
