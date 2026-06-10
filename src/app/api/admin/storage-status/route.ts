@@ -12,8 +12,15 @@ export async function GET() {
     return jsonNoStore({
       status,
       writable: status !== "vercel-missing-blob",
+      primary: status,
       surveys: store.surveys.length,
       responses: store.responses.length,
+      hint:
+        status === "neon"
+          ? "Neon PostgreSQL 사용 중"
+          : status === "blob"
+            ? "Blob 사용 중 — Neon 연결을 권장합니다"
+            : undefined,
     });
   } catch (error) {
     console.error("GET /api/admin/storage-status failed:", error);

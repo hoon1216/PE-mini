@@ -10,7 +10,8 @@ export async function GET() {
   const status = getStorageStatus();
   return NextResponse.json({
     status,
-    blobReady: status === "blob" || status === "kv",
+    neonReady: status === "neon",
+    blobReady: status === "blob" || status === "kv" || status === "neon",
     kvReady: status === "kv",
     hasImportKey: Boolean(process.env.DATA_IMPORT_KEY?.trim()),
   });
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "클라우드 저장소(KV 또는 Blob) 환경에서만 사용할 수 있습니다.",
+            "클라우드 저장소(Neon, KV 또는 Blob) 환경에서만 사용할 수 있습니다.",
         },
         { status: 400 }
       );

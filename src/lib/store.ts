@@ -1,7 +1,9 @@
 import fs from "fs";
 import path from "path";
+import { neon } from "@neondatabase/serverless";
 import { Redis } from "@upstash/redis";
 import {
+  BlobNotFoundError,
   BlobServiceRateLimited,
   get,
   head,
@@ -23,7 +25,10 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
 const BLOB_PATH = "pe-mini/store.json";
 const KV_STORE_KEY = "pe-mini:store";
+const NEON_STORE_ID = "main";
 const MEMORY_STORE_TTL_MS = 10 * 60 * 1000;
+
+type SqlClient = ReturnType<typeof neon>;
 
 let memoryStore: { data: Store; at: number } | null = null;
 
@@ -48,9 +53,22 @@ export const emptyStore = (): Store => ({
   answers: [],
 });
 
-type PrimaryBackend = "kv" | "blob" | "file";
+type PrimaryBackend = "neon" | "kv" | "blob" | "file";
 
+let sqlClient: SqlClient | null = null;
+let neonSchemaReady = false;
 let redisClient: Redis | null = null;
+
+function isNeonStorageEnabled(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
+
+function getSql(): SqlClient | null {
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) return null;
+  if (!sqlClient) sqlClient = neon(url);
+  return sqlClient;
+}
 
 function getRedis(): Redis | null {
   if (redisClient) return redisClient;
@@ -83,12 +101,18 @@ function isBlobStorageEnabled(): boolean {
 }
 
 function getPrimaryBackend(): PrimaryBackend {
+  if (isNeonStorageEnabled()) return "neon";
   if (isKvStorageEnabled()) return "kv";
   if (isBlobStorageEnabled()) return "blob";
   return "file";
 }
 
-export type StorageStatus = "kv" | "blob" | "file" | "vercel-missing-blob";
+export type StorageStatus =
+  | "neon"
+  | "kv"
+  | "blob"
+  | "file"
+  | "vercel-missing-blob";
 
 export function getStorageStatus(): StorageStatus {
   const primary = getPrimaryBackend();
@@ -101,7 +125,7 @@ export function getStorageStatus(): StorageStatus {
 function assertWritableStorage(): void {
   if (getStorageStatus() === "vercel-missing-blob") {
     throw new Error(
-      "Vercel에 영구 저장소(KV 또는 Blob)가 연결되지 않았습니다. Vercel 대시보드 → Storage에서 Redis 또는 Blob을 연결해 주세요."
+      "Vercel에 영구 저장소가 연결되지 않았습니다. Vercel 대시보드 → Storage에서 Neon, Redis 또는 Blob을 연결해 주세요."
     );
   }
 }
@@ -223,6 +247,73 @@ async function readKvStore(): Promise<Store | null> {
   return parseStoreJson(JSON.stringify(data));
 }
 
+async function ensureNeonSchema(sql: SqlClient): Promise<void> {
+  if (neonSchemaReady) return;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS pe_mini_store (
+      id TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  neonSchemaReady = true;
+}
+
+async function readNeonStore(): Promise<Store | null> {
+  const sql = getSql();
+  if (!sql) return null;
+
+  await ensureNeonSchema(sql);
+  const rows = (await sql`
+    SELECT data FROM pe_mini_store WHERE id = ${NEON_STORE_ID}
+  `) as Array<{ data: unknown }>;
+
+  if (rows.length === 0) return null;
+
+  return parseStoreJson(JSON.stringify(rows[0].data));
+}
+
+async function writeNeonStore(store: Store): Promise<void> {
+  const sql = getSql();
+  if (!sql) {
+    throw new Error("Neon DATABASE_URL이 설정되지 않았습니다.");
+  }
+
+  await ensureNeonSchema(sql);
+  await sql`
+    INSERT INTO pe_mini_store (id, data, updated_at)
+    VALUES (${NEON_STORE_ID}, ${JSON.stringify(store)}, NOW())
+    ON CONFLICT (id) DO UPDATE
+    SET data = EXCLUDED.data, updated_at = NOW()
+  `;
+  rememberStore(store);
+}
+
+async function migrateNeonFromLegacySources(): Promise<Store> {
+  const kvStore = await readKvStore();
+  if (kvStore) {
+    await writeNeonStore(kvStore);
+    return kvStore;
+  }
+
+  const blobStore = await readBlobStoreOnce();
+  if (blobStore) {
+    await writeNeonStore(blobStore);
+    return blobStore;
+  }
+
+  const seed = readSeedStore();
+  if (seed.surveys.length > 0) {
+    await writeNeonStore(seed);
+    return seed;
+  }
+
+  const empty = emptyStore();
+  await writeNeonStore(empty);
+  return empty;
+}
+
 async function writeKvStore(store: Store): Promise<void> {
   const redis = getRedis();
   if (!redis) {
@@ -243,6 +334,9 @@ async function readBlobStoreOnce(): Promise<Store | null> {
         return parseStoreJson(raw);
       }
     } catch (error) {
+      if (error instanceof BlobNotFoundError) {
+        return null;
+      }
       if (!isBlobAccessMismatch(error)) {
         console.warn(`[store] Blob head/fetch read failed (${access}):`, error);
       }
@@ -259,6 +353,9 @@ async function readBlobStoreOnce(): Promise<Store | null> {
 
       return parseStoreJson(raw);
     } catch (error) {
+      if (error instanceof BlobNotFoundError) {
+        return null;
+      }
       if (!isBlobAccessMismatch(error)) {
         console.warn(`[store] Blob get read failed (${access}):`, error);
       }
@@ -350,6 +447,15 @@ async function readPrimaryStore(): Promise<Store> {
     return readFileStore();
   }
 
+  if (primary === "neon") {
+    const neonStore = await readNeonStore();
+    if (neonStore) {
+      rememberStore(neonStore);
+      return neonStore;
+    }
+    return migrateNeonFromLegacySources();
+  }
+
   if (primary === "kv") {
     const kvStore = await readKvStore();
     if (kvStore) {
@@ -391,6 +497,11 @@ export async function writeStore(store: Store): Promise<void> {
     return;
   }
 
+  if (primary === "neon") {
+    await writeNeonStore(store);
+    return;
+  }
+
   if (primary === "kv") {
     await writeKvStore(store);
     return;
@@ -424,5 +535,5 @@ export async function replaceStore(store: Store): Promise<Store> {
 
 export function isCloudStorage(): boolean {
   const status = getStorageStatus();
-  return status === "kv" || status === "blob";
+  return status === "neon" || status === "kv" || status === "blob";
 }

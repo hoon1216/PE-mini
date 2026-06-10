@@ -16,7 +16,12 @@ export function formatStoreError(error: unknown): string {
       return `저장소 오류: ${error.message}`;
     }
 
-    if (message.includes("저장소") || message.includes("kv")) {
+    if (
+      message.includes("저장소") ||
+      message.includes("kv") ||
+      message.includes("neon") ||
+      message.includes("database")
+    ) {
       return error.message;
     }
 
