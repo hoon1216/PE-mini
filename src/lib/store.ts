@@ -323,6 +323,7 @@ export async function mutateStore<T>(fn: (store: Store) => T): Promise<T> {
   const primary = getPrimaryBackend();
 
   if (primary === "file") {
+    assertWritableStorage();
     const store = await readFileStore();
     const result = fn(store);
     writeFileStore(store);

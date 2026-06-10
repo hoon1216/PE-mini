@@ -17,6 +17,7 @@ export function SurveyList() {
   const loadSurveys = useCallback(async () => {
     const data = await fetchJson<Survey[]>("/api/surveys");
     setSurveys(data);
+    return data;
   }, []);
 
   useEffect(() => {
@@ -149,6 +150,11 @@ export function SurveyList() {
       <SurveyCreateDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          loadSurveys().catch((err) =>
+            setError(err instanceof Error ? err.message : "목록 갱신 실패")
+          );
+        }}
       />
     </>
   );

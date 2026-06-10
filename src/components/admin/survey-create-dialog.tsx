@@ -10,9 +10,14 @@ import type { SurveyDetail } from "@/lib/types";
 interface SurveyCreateDialogProps {
   open: boolean;
   onClose: () => void;
+  onCreated?: (survey: SurveyDetail) => void;
 }
 
-export function SurveyCreateDialog({ open, onClose }: SurveyCreateDialogProps) {
+export function SurveyCreateDialog({
+  open,
+  onClose,
+  onCreated,
+}: SurveyCreateDialogProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -48,8 +53,9 @@ export function SurveyCreateDialog({ open, onClose }: SurveyCreateDialogProps) {
         );
       }
 
+      onCreated?.(verified);
       handleClose();
-      router.push(`/admin/surveys/${survey.id}`);
+      router.push(`/admin/surveys/${verified.id}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "조사 생성에 실패했습니다.");
