@@ -40,8 +40,17 @@ export function SurveyCreateDialog({ open, onClose }: SurveyCreateDialogProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, description }),
       });
+
+      const verified = await fetchJson<SurveyDetail>(`/api/surveys/${survey.id}`);
+      if (!verified?.id) {
+        throw new Error(
+          "조사가 생성됐지만 저장소에 반영되지 않았습니다. Vercel Storage(KV/Blob) 연결을 확인한 뒤 다시 시도해 주세요."
+        );
+      }
+
       handleClose();
       router.push(`/admin/surveys/${survey.id}`);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "조사 생성에 실패했습니다.");
     } finally {
