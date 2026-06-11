@@ -107,34 +107,52 @@ function collectTextReason(
   return "";
 }
 
+const PREFERENCE_REASON_TITLE = "1순위 선호 이유";
+
+function isPreferenceReasonQuestion(question: Question): boolean {
+  const title = question.title.trim();
+  return (
+    title === PREFERENCE_REASON_TITLE || title.includes(PREFERENCE_REASON_TITLE)
+  );
+}
+
+export function findPreferenceReasonQuestion(
+  section: Section & { questions: Question[] }
+): Question | null {
+  const reasonQuestions = section.questions
+    .filter(
+      (question) =>
+        (question.type === "choice" || question.type === "text") &&
+        isPreferenceReasonQuestion(question)
+    )
+    .sort((a, b) => b.sortOrder - a.sortOrder);
+
+  if (reasonQuestions.length > 0) return reasonQuestions[0];
+
+  const lastChoice = section.questions
+    .filter((question) => question.type === "choice")
+    .sort((a, b) => b.sortOrder - a.sortOrder)[0];
+
+  return lastChoice ?? null;
+}
+
 export function collectPreferenceReason(
   section: Section & { questions: Question[] },
-  answersByQuestionId: Map<string, string>,
-  preferredGrill: { rank1: string; rank2: string; rank3: string }
+  answersByQuestionId: Map<string, string>
 ): string {
-  const lines: string[] = [];
+  const question = findPreferenceReasonQuestion(section);
+  if (!question) return "";
 
-  if (preferredGrill.rank1) lines.push(preferredGrill.rank1);
-  if (preferredGrill.rank2) lines.push(preferredGrill.rank2);
-  if (preferredGrill.rank3) lines.push(preferredGrill.rank3);
-
-  const choiceQuestions = section.questions
-    .filter((question) => question.type === "choice")
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-
-  for (const question of choiceQuestions) {
+  if (question.type === "choice") {
     const config = question.config as ChoiceQuestionConfig;
     const selected = parseChoiceAnswer(
       answersByQuestionId.get(question.id),
       config
     );
-    lines.push(...selected);
+    return selected.join("\n");
   }
 
-  const text = collectTextReason(section, answersByQuestionId);
-  if (text) lines.push(text);
-
-  return lines.join("\n");
+  return answersByQuestionId.get(question.id)?.trim() ?? "";
 }
 
 export function isPreferenceSection(
@@ -248,8 +266,7 @@ export function buildEvaluationSheet(
     }
     preferredReason = collectPreferenceReason(
       preferenceSection,
-      answersByQuestionId,
-      preferredGrill
+      answersByQuestionId
     );
   }
 

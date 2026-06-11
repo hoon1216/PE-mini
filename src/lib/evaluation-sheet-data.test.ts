@@ -145,15 +145,15 @@ describe("evaluation-sheet-data", () => {
       rank: 1,
     });
     expect(sheet.preferredGrill.rank1).toBe("A");
-    expect(sheet.preferredReason).toBe("A\nB\nC");
+    expect(sheet.preferredReason).toBe("");
   });
 
-  it("includes all selected choice options in preferred reason", () => {
+  it("shows only selected options from the 1순위 선호 이유 question", () => {
     const survey = createSurvey();
     survey.sections[1].questions.push({
       id: "choice-pref",
       sectionId: "section-pref",
-      title: "선호 이유",
+      title: "1순위 선호 이유",
       description: null,
       type: "choice",
       config: {
@@ -193,6 +193,6 @@ describe("evaluation-sheet-data", () => {
       ]
     );
 
-    expect(sheet.preferredReason).toBe("A\nB\nC\n색감\n독특함");
+    expect(sheet.preferredReason).toBe("색감\n독특함");
   });
 });
