@@ -39,3 +39,6 @@ next-env.d.ts
 # database
 /data/
 .vercel
+
+# downloaded at postinstall for PDF export
+/assets/fonts/*.otf

@@ -39,6 +39,7 @@ export function DashboardExportButtons({
   surveyTitle,
 }: DashboardExportButtonsProps) {
   const [loadingExcel, setLoadingExcel] = useState(false);
+  const [loadingPdf, setLoadingPdf] = useState(false);
   const [error, setError] = useState("");
 
   async function handleExcelDownload() {
@@ -56,16 +57,41 @@ export function DashboardExportButtons({
     }
   }
 
+  async function handlePdfDownload() {
+    setLoadingPdf(true);
+    setError("");
+    try {
+      await downloadFile(
+        `/api/surveys/${surveyId}/export/pdf`,
+        `${surveyTitle}-평가지.pdf`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "PDF 다운로드 실패");
+    } finally {
+      setLoadingPdf(false);
+    }
+  }
+
   return (
     <div className="flex flex-col items-end gap-2">
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={loadingExcel}
-        onClick={handleExcelDownload}
-      >
-        {loadingExcel ? "생성 중..." : "엑셀다운"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={loadingExcel || loadingPdf}
+          onClick={handleExcelDownload}
+        >
+          {loadingExcel ? "생성 중..." : "엑셀다운"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={loadingExcel || loadingPdf}
+          onClick={handlePdfDownload}
+        >
+          {loadingPdf ? "생성 중..." : "평가지PDF"}
+        </Button>
+      </div>
       {error && (
         <p className="text-xs text-red-600" role="alert">
           {error}

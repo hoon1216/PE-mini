@@ -18,13 +18,14 @@
     "db:reset": "npx tsx prisma/reset-all.ts",
     "db:reset:seed": "npx tsx prisma/reset-all.ts --seed",
     "db:sync": "prisma db push --accept-data-loss && prisma generate",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate && node scripts/ensure-korean-font.js"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "exceljs": "^4.4.0",
     "nanoid": "^5.1.5",
     "next": "^15.3.3",
+    "pdfkit": "^0.19.1",
     "prisma": "^6.19.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
@@ -33,6 +34,7 @@
     "@eslint/eslintrc": "^3.3.1",
     "@tailwindcss/postcss": "^4.1.8",
     "@types/node": "^22.15.21",
+    "@types/pdfkit": "^0.17.6",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
     "eslint": "^9.27.0",
