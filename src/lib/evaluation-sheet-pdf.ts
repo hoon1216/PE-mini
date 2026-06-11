@@ -228,9 +228,11 @@ function drawReasonBox(
   y: number,
   width: number,
   title: string,
-  text: string
+  text: string,
+  minContentLines = 2
 ): number {
-  const boxHeight = 34;
+  const lineCount = text ? text.split("\n").length : minContentLines;
+  const boxHeight = 14 + Math.max(minContentLines, lineCount) * 11;
   drawRect(doc, x, y, width, boxHeight);
   drawText(doc, title, x, y + 3, width, { fontSize: 7 });
   doc
@@ -371,7 +373,8 @@ function renderSheetPage(doc: PdfDoc, sheet: EvaluationSheet) {
     y,
     contentWidth,
     "1순위 선호 이유",
-    sheet.preferredReason
+    sheet.preferredReason,
+    4
   );
 }
 

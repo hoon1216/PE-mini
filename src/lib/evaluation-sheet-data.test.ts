@@ -145,5 +145,54 @@ describe("evaluation-sheet-data", () => {
       rank: 1,
     });
     expect(sheet.preferredGrill.rank1).toBe("A");
+    expect(sheet.preferredReason).toBe("A\nB\nC");
+  });
+
+  it("includes all selected choice options in preferred reason", () => {
+    const survey = createSurvey();
+    survey.sections[1].questions.push({
+      id: "choice-pref",
+      sectionId: "section-pref",
+      title: "선호 이유",
+      description: null,
+      type: "choice",
+      config: {
+        options: ["색감", "조화", "독특함"],
+        selectionMode: "multiple",
+      },
+      sortOrder: 1,
+    });
+
+    const sheet = buildEvaluationSheet(
+      survey,
+      {
+        id: "resp-2",
+        surveyId: "survey-1",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        participantName: "김철수",
+        gender: "female",
+        ageGroup: "30s",
+      },
+      [
+        {
+          id: "a1",
+          responseId: "resp-2",
+          questionId: "rank-pref",
+          value: JSON.stringify({
+            rank1: "A",
+            rank2: "B",
+            rank3: "C",
+          }),
+        },
+        {
+          id: "a2",
+          responseId: "resp-2",
+          questionId: "choice-pref",
+          value: JSON.stringify(["색감", "독특함"]),
+        },
+      ]
+    );
+
+    expect(sheet.preferredReason).toBe("A\nB\nC\n색감\n독특함");
   });
 });

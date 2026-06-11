@@ -1,3 +1,4 @@
+import { parseChoiceAnswer } from "./choice-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import {
   getRank1FromAnswerMap,
@@ -5,6 +6,7 @@ import {
 } from "./text-grouping-utils";
 import type {
   Answer,
+  ChoiceQuestionConfig,
   Question,
   RankingQuestionConfig,
   Response,
@@ -103,6 +105,36 @@ function collectTextReason(
   }
 
   return "";
+}
+
+export function collectPreferenceReason(
+  section: Section & { questions: Question[] },
+  answersByQuestionId: Map<string, string>,
+  preferredGrill: { rank1: string; rank2: string; rank3: string }
+): string {
+  const lines: string[] = [];
+
+  if (preferredGrill.rank1) lines.push(preferredGrill.rank1);
+  if (preferredGrill.rank2) lines.push(preferredGrill.rank2);
+  if (preferredGrill.rank3) lines.push(preferredGrill.rank3);
+
+  const choiceQuestions = section.questions
+    .filter((question) => question.type === "choice")
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  for (const question of choiceQuestions) {
+    const config = question.config as ChoiceQuestionConfig;
+    const selected = parseChoiceAnswer(
+      answersByQuestionId.get(question.id),
+      config
+    );
+    lines.push(...selected);
+  }
+
+  const text = collectTextReason(section, answersByQuestionId);
+  if (text) lines.push(text);
+
+  return lines.join("\n");
 }
 
 export function isPreferenceSection(
@@ -214,7 +246,11 @@ export function buildEvaluationSheet(
         };
       }
     }
-    preferredReason = collectTextReason(preferenceSection, answersByQuestionId);
+    preferredReason = collectPreferenceReason(
+      preferenceSection,
+      answersByQuestionId,
+      preferredGrill
+    );
   }
 
   return {
