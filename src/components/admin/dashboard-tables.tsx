@@ -343,8 +343,9 @@ export function ChoiceSectionTable({
   tableLabel?: string;
 }) {
   const headerLabel = tableLabel ?? section.questionTitle;
+  const hasOptions = section.groups.some((group) => group.options.length > 0);
 
-  if (section.options.length === 0) {
+  if (!hasOptions) {
     return (
       <div className="space-y-2">
         <p className="text-sm font-medium text-muted">{headerLabel}</p>
@@ -352,6 +353,49 @@ export function ChoiceSectionTable({
       </div>
     );
   }
+
+  if (section.groupedByRank1) {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
+          <thead>
+            <tr>
+              <th colSpan={4} className={thClass}>
+                {headerLabel}
+              </th>
+            </tr>
+            <tr>
+              <th className={thClass}>선택 1순위 컬러조합</th>
+              <th className={thClass}>선택지</th>
+              <th className={thClass}>선택 수</th>
+              <th className={thClass}>1순위 별%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {section.groups.flatMap((group) =>
+              group.options.map((row, index) => (
+                <tr key={`${group.groupName}-${row.option}`}>
+                  {index === 0 && (
+                    <td
+                      rowSpan={group.options.length}
+                      className={`${tdClass} align-middle font-medium`}
+                    >
+                      {group.groupName}
+                    </td>
+                  )}
+                  <td className={`${tdClass} text-left`}>{row.option}</td>
+                  <td className={tdClass}>{row.count}</td>
+                  <td className={tdClass}>{row.percent}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  const options = section.groups[0]?.options ?? [];
 
   return (
     <div className="overflow-x-auto">
@@ -369,7 +413,7 @@ export function ChoiceSectionTable({
           </tr>
         </thead>
         <tbody>
-          {section.options.map((row) => (
+          {options.map((row) => (
             <tr key={row.option}>
               <td className={tdClass}>{row.option}</td>
               <td className={tdClass}>{row.count}</td>

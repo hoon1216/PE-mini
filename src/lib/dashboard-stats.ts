@@ -18,6 +18,8 @@ import type {
   TextGroupStats,
   TextSectionStats,
   ChoiceSectionStats,
+  ChoiceGroupStats,
+  ChoiceOptionStats,
   ChoiceQuestionConfig,
 } from "./types";
 import {
@@ -369,18 +371,17 @@ function choiceQuestionTitle(question: Question): string {
     : "객관식";
 }
 
-function buildChoiceSectionStats(
-  section: Section,
-  question: Question,
+function buildFlatChoiceOptions(
+  config: ChoiceQuestionConfig,
   responses: Response[],
-  answers: Answer[]
-): ChoiceSectionStats {
-  const config = question.config as ChoiceQuestionConfig;
+  answers: Answer[],
+  questionId: string
+): ChoiceOptionStats[] {
   const counts = new Map<string, number>();
 
   for (const response of responses) {
     const answer = answers.find(
-      (a) => a.responseId === response.id && a.questionId === question.id
+      (a) => a.responseId === response.id && a.questionId === questionId
     );
     if (!answer) continue;
 
@@ -392,24 +393,140 @@ function buildChoiceSectionStats(
   }
 
   const total = responses.length;
-  const options = config.options
+  return config.options
     .filter((option) => (counts.get(option) ?? 0) > 0)
     .map((option) => {
       const count = counts.get(option) ?? 0;
       return {
         option,
         count,
-        percent:
-          total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
+        percent: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
       };
     });
+}
+
+function isLastChoiceQuestionInSection(
+  section: Section & { questions: Question[] },
+  question: Question
+): boolean {
+  const choiceQuestions = section.questions.filter((q) => q.type === "choice");
+  if (choiceQuestions.length === 0) return false;
+  const lastChoice = choiceQuestions.sort((a, b) => b.sortOrder - a.sortOrder)[0];
+  return lastChoice.id === question.id;
+}
+
+function buildChoiceSectionStats(
+  section: Section & { questions: Question[] },
+  question: Question,
+  precedingRanking: (GroupingQuestion & { id: string; title: string }) | null,
+  responses: Response[],
+  answers: Answer[]
+): ChoiceSectionStats {
+  const config = question.config as ChoiceQuestionConfig;
+  const groupedByRank1 =
+    isRankGroupedTextSection(section) &&
+    precedingRanking !== null &&
+    isLastChoiceQuestionInSection(section, question);
+
+  if (!groupedByRank1 || !precedingRanking) {
+    return {
+      sectionId: section.id,
+      sectionTitle: section.title,
+      questionId: question.id,
+      questionTitle: choiceQuestionTitle(question),
+      groupedByRank1: false,
+      rankingQuestionTitle: null,
+      groups: [
+        {
+          groupName: "전체",
+          options: buildFlatChoiceOptions(
+            config,
+            responses,
+            answers,
+            question.id
+          ),
+        },
+      ],
+    };
+  }
+
+  const rankingConfig = precedingRanking.config as RankingQuestionConfig;
+  const optionCountsByRank1 = new Map<string, Map<string, number>>();
+
+  for (const response of responses) {
+    const rankAnswer = answers.find(
+      (a) =>
+        a.responseId === response.id && a.questionId === precedingRanking.id
+    );
+    const parsed = parseRankingAnswer(rankAnswer?.value ?? "");
+    if (!parsed?.rank1) continue;
+
+    const choiceAnswer = answers.find(
+      (a) => a.responseId === response.id && a.questionId === question.id
+    );
+    if (!choiceAnswer) continue;
+
+    const selected = parseChoiceAnswer(choiceAnswer.value, config);
+    if (selected.length === 0) continue;
+
+    if (!optionCountsByRank1.has(parsed.rank1)) {
+      optionCountsByRank1.set(parsed.rank1, new Map());
+    }
+    const optionCounts = optionCountsByRank1.get(parsed.rank1)!;
+
+    for (const option of selected) {
+      if (!config.options.includes(option)) continue;
+      optionCounts.set(option, (optionCounts.get(option) ?? 0) + 1);
+    }
+  }
+
+  const rank1Order = [
+    ...rankingConfig.combinations.filter((rank1) => optionCountsByRank1.has(rank1)),
+    ...[...optionCountsByRank1.keys()].filter(
+      (rank1) => !rankingConfig.combinations.includes(rank1)
+    ),
+  ];
+
+  const groups: ChoiceGroupStats[] = rank1Order
+    .map((groupName) => {
+      const optionCounts = optionCountsByRank1.get(groupName);
+      if (!optionCounts) return null;
+
+      const groupTotal = [...optionCounts.values()].reduce(
+        (sum, count) => sum + count,
+        0
+      );
+
+      const options = config.options
+        .filter((option) => (optionCounts.get(option) ?? 0) > 0)
+        .map((option) => {
+          const count = optionCounts.get(option) ?? 0;
+          return {
+            option,
+            count,
+            percent:
+              groupTotal > 0
+                ? Math.round((count / groupTotal) * 1000) / 10
+                : 0,
+          };
+        });
+
+      if (options.length === 0) return null;
+      return { groupName, options };
+    })
+    .filter((group): group is ChoiceGroupStats => group !== null);
 
   return {
     sectionId: section.id,
     sectionTitle: section.title,
     questionId: question.id,
     questionTitle: choiceQuestionTitle(question),
-    options,
+    groupedByRank1: true,
+    rankingQuestionTitle:
+      precedingRanking.title !== "순위 문항"
+        ? precedingRanking.title
+        : "순위 선정",
+    groups,
   };
 }
 
@@ -475,11 +592,21 @@ export function computeDashboardStats(
     }
 
     for (const question of section.questions.filter((q) => q.type === "choice")) {
+      const precedingRanking = findPrecedingRankingQuestion(section);
+      const rankingQuestion =
+        precedingRanking?.id && precedingRanking.title !== undefined
+          ? (precedingRanking as GroupingQuestion & {
+              id: string;
+              title: string;
+            })
+          : null;
+
       tables.push({
         type: "choice",
         data: buildChoiceSectionStats(
           section,
           question,
+          rankingQuestion,
           responses,
           answers
         ),

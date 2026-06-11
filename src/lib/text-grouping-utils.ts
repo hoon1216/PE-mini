@@ -25,16 +25,20 @@ export function findPrecedingRankingQuestion(section: {
   const sorted = [...section.questions].sort(
     (a, b) => a.sortOrder - b.sortOrder
   );
-  const textQuestions = sorted.filter((q) => q.type === "text");
-  if (textQuestions.length === 0) return null;
+  const followUpQuestions = sorted.filter(
+    (q) => q.type === "text" || q.type === "choice"
+  );
+  if (followUpQuestions.length === 0) return null;
 
-  const firstTextOrder = Math.min(...textQuestions.map((q) => q.sortOrder));
-  const rankingBeforeText = sorted.filter(
-    (q) => q.type === "ranking" && q.sortOrder < firstTextOrder
+  const firstFollowUpOrder = Math.min(
+    ...followUpQuestions.map((q) => q.sortOrder)
+  );
+  const rankingBeforeFollowUp = sorted.filter(
+    (q) => q.type === "ranking" && q.sortOrder < firstFollowUpOrder
   );
 
-  return rankingBeforeText.length > 0
-    ? rankingBeforeText[rankingBeforeText.length - 1]
+  return rankingBeforeFollowUp.length > 0
+    ? rankingBeforeFollowUp[rankingBeforeFollowUp.length - 1]
     : null;
 }
 

@@ -173,12 +173,19 @@ export interface ChoiceOptionStats {
   percent: number;
 }
 
+export interface ChoiceGroupStats {
+  groupName: string;
+  options: ChoiceOptionStats[];
+}
+
 export interface ChoiceSectionStats {
   sectionId: string;
   sectionTitle: string;
   questionId: string;
   questionTitle: string;
-  options: ChoiceOptionStats[];
+  groupedByRank1: boolean;
+  rankingQuestionTitle: string | null;
+  groups: ChoiceGroupStats[];
 }
 
 export type DashboardSectionTable =

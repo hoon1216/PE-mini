@@ -188,13 +188,125 @@ describe("computeDashboardStats", () => {
 
     expect(choiceTable?.type).toBe("choice");
     if (choiceTable?.type === "choice") {
-      expect(choiceTable.data.options).toEqual([
+      expect(choiceTable.data.groups[0].options).toEqual([
         { option: "빨강", count: 1, percent: 50 },
         { option: "파랑", count: 1, percent: 50 },
       ]);
       expect(
-        choiceTable.data.options.some((row) => row.option === "노랑")
+        choiceTable.data.groups[0].options.some((row) => row.option === "노랑")
       ).toBe(false);
+    }
+  });
+
+  it("groups last choice question by preceding ranking rank1", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-pref",
+          surveyId: "survey-1",
+          title: "선호 순위",
+          description: null,
+          sortOrder: 2,
+          questions: [
+            {
+              id: "q-rank",
+              sectionId: "section-pref",
+              title: "순위 문항",
+              description: null,
+              type: "ranking",
+              config: {
+                combinations: ["A", "B", "C", "D"],
+              },
+              sortOrder: 0,
+            },
+            {
+              id: "q-choice",
+              sectionId: "section-pref",
+              title: "1순위 선호 이유",
+              description: null,
+              type: "choice",
+              config: {
+                options: ["이유1", "이유2", "이유3"],
+                selectionMode: "multiple",
+              },
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    const responses = [
+      {
+        id: "resp-1",
+        surveyId: "survey-1",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        participantName: "A",
+        gender: "male" as const,
+        ageGroup: "20s" as const,
+      },
+      {
+        id: "resp-2",
+        surveyId: "survey-1",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        participantName: "B",
+        gender: "female" as const,
+        ageGroup: "30s" as const,
+      },
+    ];
+
+    const answers: Answer[] = [
+      {
+        id: "r1",
+        responseId: "resp-1",
+        questionId: "q-rank",
+        value: JSON.stringify({ rank1: "A", rank2: "B", rank3: "C" }),
+      },
+      {
+        id: "c1",
+        responseId: "resp-1",
+        questionId: "q-choice",
+        value: JSON.stringify(["이유1", "이유2"]),
+      },
+      {
+        id: "r2",
+        responseId: "resp-2",
+        questionId: "q-rank",
+        value: JSON.stringify({ rank1: "B", rank2: "A", rank3: "C" }),
+      },
+      {
+        id: "c2",
+        responseId: "resp-2",
+        questionId: "q-choice",
+        value: JSON.stringify(["이유2", "이유3"]),
+      },
+    ];
+
+    const stats = computeDashboardStats(survey, responses, answers);
+    const choiceTable = stats.sectionGroups[0].tables.find(
+      (table) => table.type === "choice"
+    );
+
+    expect(choiceTable?.type).toBe("choice");
+    if (choiceTable?.type === "choice") {
+      expect(choiceTable.data.groupedByRank1).toBe(true);
+      expect(choiceTable.data.groups).toEqual([
+        {
+          groupName: "A",
+          options: [
+            { option: "이유1", count: 1, percent: 50 },
+            { option: "이유2", count: 1, percent: 50 },
+          ],
+        },
+        {
+          groupName: "B",
+          options: [
+            { option: "이유2", count: 1, percent: 50 },
+            { option: "이유3", count: 1, percent: 50 },
+          ],
+        },
+      ]);
     }
   });
 

@@ -234,11 +234,25 @@ function writeChoiceTable(
   const section = table.data;
   writer.addTitle(`${section.questionTitle} — ${section.sectionTitle}`);
 
-  if (section.options.length === 0) {
+  const hasOptions = section.groups.some((group) => group.options.length > 0);
+  if (!hasOptions) {
     writer.addRows([["선택된 답변이 없습니다."]]);
+    writer.addBlank(2);
+    return;
+  }
+
+  if (section.groupedByRank1) {
+    writer.addRows([["선택 1순위 컬러조합", "선택지", "선택 수", "1순위 별%"]]);
+    for (const group of section.groups) {
+      for (const option of group.options) {
+        writer.addRows([
+          [group.groupName, option.option, option.count, option.percent],
+        ]);
+      }
+    }
   } else {
     writer.addRows([["선택지", "선택 수", "%"]]);
-    for (const option of section.options) {
+    for (const option of section.groups[0]?.options ?? []) {
       writer.addRows([[option.option, option.count, option.percent]]);
     }
   }
