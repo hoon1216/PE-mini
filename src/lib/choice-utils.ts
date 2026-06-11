@@ -1,21 +1,24 @@
-import type { ChoiceQuestionConfig } from "./types";
+import type { ChoiceQuestionConfig, ChoiceSelectionMode } from "./types";
 
-export function normalizeChoiceSelectCount(
-  selectCount: number | undefined,
-  optionCount: number
-): number {
-  const max = Math.max(1, optionCount);
-  const count = selectCount ?? 1;
-  return Math.min(Math.max(1, Math.floor(count)), max);
+export function choiceSelectionMode(
+  config: ChoiceQuestionConfig
+): ChoiceSelectionMode {
+  if (config.selectionMode) return config.selectionMode;
+  return (config.selectCount ?? 1) <= 1 ? "single" : "multiple";
 }
 
+export function isSingleChoice(config: ChoiceQuestionConfig): boolean {
+  return choiceSelectionMode(config) === "single";
+}
+
+/** @deprecated use choiceSelectionMode */
 export function choiceSelectCount(config: ChoiceQuestionConfig): number {
-  return normalizeChoiceSelectCount(config.selectCount, config.options.length);
+  return isSingleChoice(config) ? 1 : config.options.length;
 }
 
 export function parseChoiceAnswer(
   value: string | string[] | undefined,
-  selectCount: number
+  config: ChoiceQuestionConfig
 ): string[] {
   if (Array.isArray(value)) {
     return value.filter((item) => typeof item === "string");
@@ -23,7 +26,7 @@ export function parseChoiceAnswer(
 
   if (!value) return [];
 
-  if (selectCount <= 1) {
+  if (isSingleChoice(config)) {
     return value ? [value] : [];
   }
 
@@ -41,9 +44,9 @@ export function parseChoiceAnswer(
 
 export function serializeChoiceAnswer(
   selected: string[],
-  selectCount: number
+  config: ChoiceQuestionConfig
 ): string {
-  if (selectCount <= 1) {
+  if (isSingleChoice(config)) {
     return selected[0] ?? "";
   }
   return JSON.stringify(selected);
@@ -51,15 +54,16 @@ export function serializeChoiceAnswer(
 
 export function validateChoiceAnswer(
   selected: string[],
-  options: string[],
-  selectCount: number
+  config: ChoiceQuestionConfig
 ): string | null {
-  const required = choiceSelectCount({ options, selectCount });
+  const { options } = config;
 
-  if (selected.length !== required) {
-    return required === 1
-      ? "객관식 문항에서 선택지를 선택해주세요."
-      : `객관식 문항에서 ${required}개의 선택지를 선택해주세요.`;
+  if (selected.length === 0) {
+    return "객관식 문항에서 선택지를 선택해주세요.";
+  }
+
+  if (isSingleChoice(config) && selected.length !== 1) {
+    return "객관식 문항에서 1개의 선택지를 선택해주세요.";
   }
 
   const unique = new Set(selected);
@@ -79,18 +83,14 @@ export function validateChoiceAnswer(
 export function toggleChoiceSelection(
   current: string[],
   option: string,
-  selectCount: number
+  config: ChoiceQuestionConfig
 ): string[] {
-  if (selectCount <= 1) {
+  if (isSingleChoice(config)) {
     return [option];
   }
 
   if (current.includes(option)) {
     return current.filter((item) => item !== option);
-  }
-
-  if (current.length >= selectCount) {
-    return current;
   }
 
   return [...current, option];

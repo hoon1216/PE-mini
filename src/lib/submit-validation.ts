@@ -1,5 +1,4 @@
 import {
-  choiceSelectCount,
   parseChoiceAnswer,
   validateChoiceAnswer,
 } from "./choice-utils";
@@ -90,9 +89,8 @@ function validateAnswerForQuestion(
 
   if (question.type === "choice") {
     const config = question.config as ChoiceQuestionConfig;
-    const selectCount = choiceSelectCount(config);
-    const selected = parseChoiceAnswer(value, selectCount);
-    return validateChoiceAnswer(selected, config.options, selectCount);
+    const selected = parseChoiceAnswer(value, config);
+    return validateChoiceAnswer(selected, config);
   }
 
   return "지원하지 않는 문항 유형입니다.";

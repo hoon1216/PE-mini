@@ -1,5 +1,4 @@
 import {
-  choiceSelectCount,
   serializeChoiceAnswer,
   validateChoiceAnswer,
 } from "./choice-utils";
@@ -147,8 +146,7 @@ export function validateSectionAnswers(
       const config = question.config as ChoiceQuestionConfig;
       const choiceError = validateChoiceAnswer(
         choices[question.id] ?? [],
-        config.options,
-        choiceSelectCount(config)
+        config
       );
       if (choiceError) return choiceError;
     }
@@ -266,19 +264,14 @@ export function buildSubmitPayload(
         });
       } else if (question.type === "choice") {
         const config = question.config as ChoiceQuestionConfig;
-        const selectCount = choiceSelectCount(config);
         const selected = draft.choices[question.id] ?? [];
-        const choiceError = validateChoiceAnswer(
-          selected,
-          config.options,
-          selectCount
-        );
+        const choiceError = validateChoiceAnswer(selected, config);
         if (choiceError) {
           throw new Error(choiceError);
         }
         answers.push({
           questionId: question.id,
-          value: serializeChoiceAnswer(selected, selectCount),
+          value: serializeChoiceAnswer(selected, config),
         });
       }
     }

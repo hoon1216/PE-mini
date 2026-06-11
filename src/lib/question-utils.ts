@@ -43,11 +43,10 @@ export function normalizeQuestionConfig(
     const raw = (config ?? {}) as Partial<ChoiceQuestionConfig>;
     const defaults = defaultChoiceQuestionConfig();
     const options = raw.options?.length ? raw.options : defaults.options;
-    const selectCount = Math.min(
-      Math.max(1, Math.floor(raw.selectCount ?? defaults.selectCount ?? 1)),
-      options.length
-    );
-    return { options, selectCount };
+    const selectionMode =
+      raw.selectionMode ??
+      ((raw.selectCount ?? 1) > 1 ? "multiple" : defaults.selectionMode ?? "single");
+    return { options, selectionMode };
   }
 
   if (type === "score") {

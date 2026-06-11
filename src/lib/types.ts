@@ -18,9 +18,13 @@ export interface TextQuestionConfig {
   rankGroup?: string;
 }
 
+export type ChoiceSelectionMode = "single" | "multiple";
+
 export interface ChoiceQuestionConfig {
   options: string[];
-  /** Number of options the participant must select (1 = single choice). */
+  /** single = 1개 선택, multiple = 복수 선택 */
+  selectionMode?: ChoiceSelectionMode;
+  /** @deprecated use selectionMode — kept for legacy data */
   selectCount?: number;
 }
 
@@ -254,7 +258,10 @@ export function defaultTextQuestionConfig(): TextQuestionConfig {
 }
 
 export function defaultChoiceQuestionConfig(): ChoiceQuestionConfig {
-  return { options: ["선택지 A", "선택지 B", "선택지 C"], selectCount: 1 };
+  return {
+    options: ["선택지 A", "선택지 B", "선택지 C"],
+    selectionMode: "single",
+  };
 }
 
 export function configForQuestionType(type: QuestionType): QuestionConfig {

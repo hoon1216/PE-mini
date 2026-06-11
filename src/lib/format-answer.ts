@@ -1,4 +1,4 @@
-import { choiceSelectCount, parseChoiceAnswer } from "./choice-utils";
+import { parseChoiceAnswer } from "./choice-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import type {
   ChoiceQuestionConfig,
@@ -23,7 +23,7 @@ export function formatAnswerValue(question: Question, value: string): string {
 
   if (question.type === "choice") {
     const config = question.config as ChoiceQuestionConfig;
-    const selected = parseChoiceAnswer(value, choiceSelectCount(config));
+    const selected = parseChoiceAnswer(value, config);
     return selected.join(", ") || value;
   }
 

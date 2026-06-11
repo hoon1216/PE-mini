@@ -128,7 +128,7 @@ describe("validateSubmitResponse", () => {
     ).toThrow("유효하지 않은 선택지입니다.");
   });
 
-  it("accepts multi-select choice when selectCount matches", () => {
+  it("accepts multi-select choice with one or more options", () => {
     const multiSurvey: SurveyDetail = {
       ...survey,
       sections: [
@@ -143,7 +143,7 @@ describe("validateSubmitResponse", () => {
               type: "choice",
               config: {
                 options: ["옵션1", "옵션2", "옵션3"],
-                selectCount: 2,
+                selectionMode: "multiple",
               },
               sortOrder: 0,
             },
@@ -165,9 +165,23 @@ describe("validateSubmitResponse", () => {
         ],
       })
     ).not.toThrow();
+
+    expect(() =>
+      validateSubmitResponse(multiSurvey, {
+        participantName: "홍길동",
+        gender: "male",
+        ageGroup: "20s",
+        answers: [
+          {
+            questionId: "q-multi",
+            value: JSON.stringify(["옵션1"]),
+          },
+        ],
+      })
+    ).not.toThrow();
   });
 
-  it("rejects multi-select choice with wrong count", () => {
+  it("rejects multi-select choice with no selection", () => {
     const multiSurvey: SurveyDetail = {
       ...survey,
       sections: [
@@ -182,7 +196,7 @@ describe("validateSubmitResponse", () => {
               type: "choice",
               config: {
                 options: ["옵션1", "옵션2", "옵션3"],
-                selectCount: 2,
+                selectionMode: "multiple",
               },
               sortOrder: 0,
             },
@@ -196,13 +210,8 @@ describe("validateSubmitResponse", () => {
         participantName: "홍길동",
         gender: "male",
         ageGroup: "20s",
-        answers: [
-          {
-            questionId: "q-multi",
-            value: JSON.stringify(["옵션1"]),
-          },
-        ],
+        answers: [{ questionId: "q-multi", value: JSON.stringify([]) }],
       })
-    ).toThrow("객관식 문항에서 2개의 선택지를 선택해주세요.");
+    ).toThrow("객관식 문항에서 선택지를 선택해주세요.");
   });
 });

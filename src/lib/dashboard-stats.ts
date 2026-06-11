@@ -21,7 +21,6 @@ import type {
   ChoiceQuestionConfig,
 } from "./types";
 import {
-  choiceSelectCount,
   parseChoiceAnswer,
 } from "./choice-utils";
 import {
@@ -377,7 +376,6 @@ function buildChoiceSectionStats(
   answers: Answer[]
 ): ChoiceSectionStats {
   const config = question.config as ChoiceQuestionConfig;
-  const selectCount = choiceSelectCount(config);
   const counts = new Map<string, number>();
 
   for (const response of responses) {
@@ -386,7 +384,7 @@ function buildChoiceSectionStats(
     );
     if (!answer) continue;
 
-    const selected = parseChoiceAnswer(answer.value, selectCount);
+    const selected = parseChoiceAnswer(answer.value, config);
     for (const option of selected) {
       if (!config.options.includes(option)) continue;
       counts.set(option, (counts.get(option) ?? 0) + 1);

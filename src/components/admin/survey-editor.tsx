@@ -20,7 +20,9 @@ import type {
   SurveyDetail,
   TextQuestionConfig,
   ChoiceQuestionConfig,
+  ChoiceSelectionMode,
 } from "@/lib/types";
+import { choiceSelectionMode } from "@/lib/choice-utils";
 import { ParticipantResponseManager } from "@/components/admin/participant-response-manager";
 import {
   createDefaultQuestion,
@@ -72,7 +74,7 @@ function cloneQuestionConfig(question: EditorQuestion): QuestionConfig {
     const config = question.config as ChoiceQuestionConfig;
     return {
       options: [...config.options],
-      selectCount: config.selectCount ?? 1,
+      selectionMode: choiceSelectionMode(config),
     };
   }
   return {
@@ -222,13 +224,12 @@ export function SurveyEditor({
             }
             const config = question.config as ChoiceQuestionConfig;
             const next = { ...config, ...patch };
-            const selectCount = Math.min(
-              Math.max(1, Math.floor(next.selectCount ?? 1)),
-              next.options.length
-            );
+            const selectionMode: ChoiceSelectionMode =
+              next.selectionMode ??
+              (next.selectCount && next.selectCount > 1 ? "multiple" : "single");
             return {
               ...question,
-              config: { ...next, selectCount },
+              config: { options: next.options, selectionMode },
             };
           }),
         };
@@ -306,15 +307,11 @@ export function SurveyEditor({
             const config = question.config as ChoiceQuestionConfig;
             if (config.options.length <= 2) return question;
             const options = config.options.filter((_, i) => i !== optionIndex);
-            const selectCount = Math.min(
-              config.selectCount ?? 1,
-              options.length
-            );
             return {
               ...question,
               config: {
                 options,
-                selectCount,
+                selectionMode: choiceSelectionMode(config),
               },
             };
           }),
@@ -868,24 +865,39 @@ export function SurveyEditor({
                   {choiceConfig && (
                     <div className="mt-3 space-y-2">
                       <div>
-                        <label className="mb-1 block text-sm font-medium">
-                          선택해야 하는 개수
-                        </label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={choiceConfig.options.length}
-                          value={choiceConfig.selectCount ?? 1}
-                          onChange={(e) =>
-                            updateChoiceQuestion(sectionIndex, questionIndex, {
-                              selectCount: Number(e.target.value) || 1,
-                            })
-                          }
-                        />
-                        <p className="mt-1 text-xs text-muted">
-                          1이면 단일 선택, 2 이상이면 해당 개수만큼 선택해야
-                          합니다.
-                        </p>
+                        <p className="mb-2 text-sm font-medium">선택 방식</p>
+                        <div className="flex flex-wrap gap-4">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              name={`choice-mode-${sectionIndex}-${questionIndex}`}
+                              checked={choiceSelectionMode(choiceConfig) === "single"}
+                              onChange={() =>
+                                updateChoiceQuestion(sectionIndex, questionIndex, {
+                                  selectionMode: "single",
+                                })
+                              }
+                              className="text-primary"
+                            />
+                            단일 선택 (1개)
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              name={`choice-mode-${sectionIndex}-${questionIndex}`}
+                              checked={
+                                choiceSelectionMode(choiceConfig) === "multiple"
+                              }
+                              onChange={() =>
+                                updateChoiceQuestion(sectionIndex, questionIndex, {
+                                  selectionMode: "multiple",
+                                })
+                              }
+                              className="text-primary"
+                            />
+                            복수 선택
+                          </label>
+                        </div>
                       </div>
                       <p className="text-sm font-medium">선택지 목록</p>
                       {choiceConfig.options.map((option, optionIndex) => (

@@ -166,7 +166,7 @@ describe("computeDashboardStats", () => {
               type: "choice",
               config: {
                 options: ["빨강", "파랑", "노랑"],
-                selectCount: 1,
+                selectionMode: "single",
               },
               sortOrder: 0,
             },

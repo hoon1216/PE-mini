@@ -10,7 +10,7 @@ import {
   type RankingField,
 } from "@/lib/ranking-utils";
 import {
-  choiceSelectCount,
+  isSingleChoice,
   toggleChoiceSelection,
 } from "@/lib/choice-utils";
 import {
@@ -178,11 +178,9 @@ export function SectionQuestions({
           <p className="text-xs text-muted">객관식</p>
           {choiceQuestions.map((question) => {
             const config = question.config as ChoiceQuestionConfig;
-            const selectCount = choiceSelectCount(config);
             const selected = choices[question.id] ?? [];
             const groupName = `choice-${question.id}`;
-            const isSingle = selectCount === 1;
-            const atLimit = !isSingle && selected.length >= selectCount;
+            const isSingle = isSingleChoice(config);
 
             return (
               <fieldset key={question.id} className="space-y-2">
@@ -195,38 +193,26 @@ export function SectionQuestions({
                   <p className="text-xs text-muted">{question.description}</p>
                 )}
                 <p className="text-xs text-muted">
-                  {isSingle
-                    ? "1개 선택"
-                    : `${selectCount}개 선택 (${selected.length}/${selectCount})`}
+                  {isSingle ? "1개 선택" : "복수 선택 가능"}
                 </p>
                 <div className="space-y-2">
                   {config.options.map((option) => {
                     const isChecked = selected.includes(option);
-                    const isDisabled = !isSingle && !isChecked && atLimit;
 
                     return (
                       <label
                         key={option}
-                        className={`flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5 ${
-                          isDisabled
-                            ? "cursor-not-allowed opacity-50"
-                            : "cursor-pointer"
-                        }`}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5"
                       >
                         <input
                           type={isSingle ? "radio" : "checkbox"}
                           name={groupName}
                           value={option}
                           checked={isChecked}
-                          disabled={isDisabled}
                           onChange={() =>
                             onChoiceChange(
                               question.id,
-                              toggleChoiceSelection(
-                                selected,
-                                option,
-                                selectCount
-                              )
+                              toggleChoiceSelection(selected, option, config)
                             )
                           }
                           className="text-primary"
