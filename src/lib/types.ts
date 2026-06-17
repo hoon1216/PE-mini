@@ -41,6 +41,18 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   choice: "객관식",
 };
 
+export const SCORE_MIN = 1;
+export const SCORE_MAX = 7;
+export const SCORE_VALUES = [1, 2, 3, 4, 5, 6, 7] as const;
+export const DEFAULT_SCORE_VALUE = 4;
+
+export function isValidScoreValue(value: string): boolean {
+  const score = Number(value);
+  return (
+    Number.isInteger(score) && score >= SCORE_MIN && score <= SCORE_MAX
+  );
+}
+
 export interface Survey {
   id: string;
   title: string;

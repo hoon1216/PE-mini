@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SCORE_MAX, SCORE_MIN, SCORE_VALUES } from "@/lib/types";
 
 interface ScoreSliderProps {
   value: number;
   isSet: boolean;
   onChange: (value: number) => void;
 }
-
-const SCORES = [1, 2, 3, 4, 5] as const;
 
 export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
   const [touched, setTouched] = useState(isSet);
@@ -29,7 +28,7 @@ export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
   return (
     <div className="mt-3">
       <div className="mb-3 flex items-center justify-between text-xs text-muted">
-        <span>1점</span>
+        <span>{SCORE_MIN}점</span>
         <span
           className="rounded-full px-3 py-1 text-base font-bold"
           style={{
@@ -39,16 +38,16 @@ export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
         >
           {active ? `${value}점` : "선택"}
         </span>
-        <span>5점</span>
+        <span>{SCORE_MAX}점</span>
       </div>
 
       <div className="relative px-1 py-2">
         <div
-          className="absolute left-5 right-5 top-1/2 h-1 -translate-y-1/2 rounded-full"
+          className="absolute left-4 right-4 top-1/2 h-1 -translate-y-1/2 rounded-full"
           style={{ backgroundColor: active ? "#bfdbfe" : "#fecaca" }}
         />
-        <div className="relative flex justify-between">
-          {SCORES.map((score) => {
+        <div className="relative flex justify-between gap-0.5">
+          {SCORE_VALUES.map((score) => {
             const selected = active && value === score;
             return (
               <button
@@ -57,7 +56,7 @@ export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
                 onClick={() => select(score)}
                 aria-label={`${score}점`}
                 aria-pressed={selected}
-                className="relative z-10 h-10 w-10 rounded-full border-2 border-white shadow-md transition-transform active:scale-95"
+                className="relative z-10 h-9 w-9 rounded-full border-2 border-white shadow-md transition-transform active:scale-95 sm:h-10 sm:w-10"
                 style={{
                   backgroundColor: selected ? primary : secondary,
                   boxShadow: selected
@@ -66,7 +65,7 @@ export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
                 }}
               >
                 <span
-                  className="text-sm font-bold"
+                  className="text-xs font-bold sm:text-sm"
                   style={{ color: selected ? "#ffffff" : primary }}
                 >
                   {score}

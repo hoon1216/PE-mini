@@ -13,13 +13,13 @@ import type {
   TextQuestionConfig,
   ChoiceQuestionConfig,
 } from "./types";
+import { isValidScoreValue, SCORE_MAX, SCORE_MIN } from "./types";
 import { getRequiredQuestionsForSurvey } from "./text-grouping-utils";
 import { validateRankingAnswer } from "./ranking-utils";
 import type { RankingAnswer } from "./ranking-utils";
 
 const GENDERS: Gender[] = ["male", "female"];
 const AGE_GROUPS: AgeGroup[] = ["10s", "20s", "30s", "40s", "50s", "60s"];
-const VALID_SCORES = new Set(["1", "2", "3", "4", "5"]);
 
 export class SubmitValidationError extends Error {
   constructor(message: string) {
@@ -37,8 +37,8 @@ function isAgeGroup(value: string): value is AgeGroup {
 }
 
 function validateScoreValue(value: string): string | null {
-  if (!VALID_SCORES.has(value)) {
-    return "점수는 1~5 사이여야 합니다.";
+  if (!isValidScoreValue(value)) {
+    return `점수는 ${SCORE_MIN}~${SCORE_MAX} 사이여야 합니다.`;
   }
   return null;
 }

@@ -27,6 +27,7 @@ import type {
   TextQuestionConfig,
   ChoiceQuestionConfig,
 } from "@/lib/types";
+import { DEFAULT_SCORE_VALUE, SCORE_MAX, SCORE_MIN } from "@/lib/types";
 
 const RANK_LABELS: Record<RankingField, string> = {
   rank1: "1순위",
@@ -94,7 +95,9 @@ export function SectionQuestions({
     <div className="space-y-5">
       {scoreGroups.length > 0 && (
         <div className="space-y-4">
-          <p className="text-xs text-muted">점수 부과형 (1~5점)</p>
+          <p className="text-xs text-muted">
+            점수 부과형 ({SCORE_MIN}~{SCORE_MAX}점)
+          </p>
           {scoreGroups.map((group) => (
             <div
               key={group.category}
@@ -113,7 +116,7 @@ export function SectionQuestions({
                         {config.combination}
                       </p>
                       <ScoreSlider
-                        value={Number(scores[question.id] ?? 3)}
+                        value={Number(scores[question.id] ?? DEFAULT_SCORE_VALUE)}
                         isSet={!!scores[question.id]}
                         onChange={(score) => onScoreChange(question.id, score)}
                       />
