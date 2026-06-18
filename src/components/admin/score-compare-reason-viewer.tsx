@@ -36,7 +36,31 @@ function matchesFilters(
   return true;
 }
 
-function FilterButtonGroup({
+function FilterChip({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`shrink-0 rounded-lg border px-2.5 py-1 text-sm transition ${
+        selected
+          ? "border-primary bg-primary text-white"
+          : "border-border bg-card hover:border-primary/40"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function InlineFilterGroup({
   label,
   value,
   options,
@@ -48,22 +72,19 @@ function FilterButtonGroup({
   onChange: (value: FilterValue) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium">{label}</p>
-      <div className="flex flex-wrap gap-2">
+    <div className="flex shrink-0 items-center gap-2">
+      <span className="whitespace-nowrap text-sm font-medium text-muted">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
         {options.map((option) => (
-          <button
+          <FilterChip
             key={`${label}-${option.value}`}
-            type="button"
+            selected={value === option.value}
             onClick={() => onChange(option.value)}
-            className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-              value === option.value
-                ? "border-primary bg-primary text-white"
-                : "border-border bg-card hover:border-primary/40"
-            }`}
           >
             {option.label}
-          </button>
+          </FilterChip>
         ))}
       </div>
     </div>
@@ -111,52 +132,58 @@ export function ScoreCompareReasonViewer({
   }
 
   return (
-    <div className="space-y-5">
-      <FilterButtonGroup
-        label="성별"
-        value={gender}
-        onChange={setGender}
-        options={[
-          { value: "all", label: "전체" },
-          { value: "male", label: GENDER_LABELS.male },
-          { value: "female", label: GENDER_LABELS.female },
-        ]}
-      />
-
-      <FilterButtonGroup
-        label="연령대"
-        value={ageGroup}
-        onChange={setAgeGroup}
-        options={[
-          { value: "all", label: "전체" },
-          ...ageGroups.map((age) => ({
-            value: age,
-            label: AGE_GROUP_LABELS[age],
-          })),
-        ]}
-      />
-
-      {demographicFields.map((field, index) => (
-        <FilterButtonGroup
-          key={field.id}
-          label={`구분자 ${index + 1} (${field.label})`}
-          value={customFilters[field.id] ?? "all"}
-          onChange={(value) =>
-            setCustomFilters((prev) => ({ ...prev, [field.id]: value }))
-          }
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <InlineFilterGroup
+          label="성별"
+          value={gender}
+          onChange={setGender}
           options={[
             { value: "all", label: "전체" },
-            ...field.options.map((option) => ({
-              value: option,
-              label: option,
+            { value: "male", label: GENDER_LABELS.male },
+            { value: "female", label: GENDER_LABELS.female },
+          ]}
+        />
+
+        <InlineFilterGroup
+          label="연령대"
+          value={ageGroup}
+          onChange={setAgeGroup}
+          options={[
+            { value: "all", label: "전체" },
+            ...ageGroups.map((age) => ({
+              value: age,
+              label: AGE_GROUP_LABELS[age],
             })),
           ]}
         />
-      ))}
 
-      <Button type="button" onClick={() => setShowAnswers(true)}>
-        답안 표시
-      </Button>
+        {demographicFields.map((field, index) => (
+          <InlineFilterGroup
+            key={field.id}
+            label={`구분자${index + 1}`}
+            value={customFilters[field.id] ?? "all"}
+            onChange={(value) =>
+              setCustomFilters((prev) => ({ ...prev, [field.id]: value }))
+            }
+            options={[
+              { value: "all", label: "전체" },
+              ...field.options.map((option) => ({
+                value: option,
+                label: option,
+              })),
+            ]}
+          />
+        ))}
+
+        <Button
+          type="button"
+          className="shrink-0"
+          onClick={() => setShowAnswers(true)}
+        >
+          답안 표시
+        </Button>
+      </div>
 
       {showAnswers && (
         <div className="space-y-4">
@@ -175,7 +202,10 @@ export function ScoreCompareReasonViewer({
                 </p>
                 <div className="mt-3 space-y-2">
                   {block.reasons.map((reason, index) => (
-                    <p key={`${block.winningCombination}-${index}`} className="text-sm">
+                    <p
+                      key={`${block.winningCombination}-${index}`}
+                      className="text-sm"
+                    >
                       {reason}
                     </p>
                   ))}

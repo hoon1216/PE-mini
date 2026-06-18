@@ -123,84 +123,80 @@ function ScoreCompareScoreTable({
 
 export function DemographicTable({ data }: { data: DemographicStats }) {
   const ageGroups = data.ageGroups;
+  const customColCount = data.customFields.reduce(
+    (sum, field) => sum + field.options.length,
+    0
+  );
+  const totalColSpan = 1 + 2 + ageGroups.length + customColCount;
 
   return (
-    <div className="space-y-4">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
-          <thead>
-            <tr>
-              <th colSpan={3 + ageGroups.length} className={thClass}>
-                조사 대상
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
+        <thead>
+          <tr>
+            <th colSpan={totalColSpan} className={thClass}>
+              조사 대상
+            </th>
+          </tr>
+          <tr>
+            <th rowSpan={2} className={thClass}>
+              총 인원
+            </th>
+            <th colSpan={2} className={thClass}>
+              성별
+            </th>
+            {ageGroups.length > 0 && (
+              <th colSpan={ageGroups.length} className={thClass}>
+                연령대
               </th>
-            </tr>
-            <tr>
-              <th rowSpan={2} className={thClass}>
-                총 인원
+            )}
+            {data.customFields.map((field) => (
+              <th
+                key={field.fieldId}
+                colSpan={field.options.length}
+                className={thClass}
+              >
+                {field.label}
               </th>
-              <th colSpan={2} className={thClass}>
-                성별
+            ))}
+          </tr>
+          <tr>
+            <th className={thClass}>남</th>
+            <th className={thClass}>여</th>
+            {ageGroups.map((age) => (
+              <th key={age} className={thClass}>
+                {AGE_GROUP_LABELS[age]}
               </th>
-              {ageGroups.length > 0 && (
-                <th colSpan={ageGroups.length} className={thClass}>
-                  연령대
+            ))}
+            {data.customFields.flatMap((field) =>
+              field.options.map((option) => (
+                <th key={`${field.fieldId}-${option}`} className={thClass}>
+                  {option}
                 </th>
-              )}
-            </tr>
-            <tr>
-              <th className={thClass}>남</th>
-              <th className={thClass}>여</th>
-              {ageGroups.map((age) => (
-                <th key={age} className={thClass}>
-                  {AGE_GROUP_LABELS[age]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className={tdClass}>{data.total}</td>
-              <td className={tdClass}>{data.male}</td>
-              <td className={tdClass}>{data.female}</td>
-              {ageGroups.map((age) => (
-                <td key={age} className={tdClass}>
-                  {data.byAgeGroup[age] ?? 0}
+              ))
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className={tdClass}>{data.total}</td>
+            <td className={tdClass}>{data.male}</td>
+            <td className={tdClass}>{data.female}</td>
+            {ageGroups.map((age) => (
+              <td key={age} className={tdClass}>
+                {data.byAgeGroup[age] ?? 0}
+              </td>
+            ))}
+            {data.customFields.flatMap((field) =>
+              field.options.map((option) => (
+                <td key={`${field.fieldId}-${option}`} className={tdClass}>
+                  {field.byOption[option] ?? 0}
                 </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {data.customFields.map((field) => (
-        <div key={field.fieldId} className="overflow-x-auto">
-          <table className="w-full min-w-[320px] border-collapse border border-slate-300 text-sm">
-            <thead>
-              <tr>
-                <th colSpan={field.options.length} className={thClass}>
-                  {field.label}
-                </th>
-              </tr>
-              <tr>
-                {field.options.map((option) => (
-                  <th key={option} className={thClass}>
-                    {option}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                {field.options.map((option) => (
-                  <td key={option} className={tdClass}>
-                    {field.byOption[option] ?? 0}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      ))}
+              ))
+            )}
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }

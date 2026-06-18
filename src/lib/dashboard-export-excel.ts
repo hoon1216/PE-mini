@@ -46,27 +46,23 @@ class SheetWriter {
 function writeDemographics(writer: SheetWriter, stats: DashboardStats) {
   const { demographics } = stats;
   const ageGroups = demographics.ageGroups;
+  const customHeaders = demographics.customFields.flatMap((field) =>
+    field.options.map((option) => `${field.label} ${option}`)
+  );
 
   writer.addTitle("조사 대상");
   writer.addRows([
-    ["총 인원", "성별", "", ...ageGroups.map((age) => AGE_GROUP_LABELS[age])],
-    ["", "남", "여", ...ageGroups.map(() => "")],
+    ["총 인원", "남", "여", ...ageGroups.map((age) => AGE_GROUP_LABELS[age]), ...customHeaders],
     [
       demographics.total,
       demographics.male,
       demographics.female,
       ...ageGroups.map((age) => demographics.byAgeGroup[age] ?? 0),
+      ...demographics.customFields.flatMap((field) =>
+        field.options.map((option) => field.byOption[option] ?? 0)
+      ),
     ],
   ]);
-
-  for (const field of demographics.customFields) {
-    writer.addBlank();
-    writer.addRows([
-      [field.label, ...field.options.slice(1).map(() => "")],
-      field.options,
-      field.options.map((option) => field.byOption[option] ?? 0),
-    ]);
-  }
 
   writer.addBlank(2);
 }
