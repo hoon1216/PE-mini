@@ -20,6 +20,14 @@ import type {
 } from "./types";
 import { AGE_GROUP_LABELS } from "./types";
 
+export function normalizeChoiceCategory(
+  category?: string | null
+): string | null {
+  const trimmed = category?.trim();
+  if (!trimmed || trimmed === "없음") return null;
+  return trimmed;
+}
+
 export function isChoiceComparisonSection(
   section: Section & { questions: Question[] }
 ): boolean {
@@ -384,12 +392,12 @@ export function buildChoiceComparisonSectionStats(
               );
       }
 
-      return {
-        questionId: question.id,
-        itemLabel: choiceQuestionLabel(question),
-        category: config.category?.trim() || null,
-        cells,
-      };
+        return {
+          questionId: question.id,
+          itemLabel: choiceQuestionLabel(question),
+          category: normalizeChoiceCategory(config.category),
+          cells,
+        };
     }),
   }));
 

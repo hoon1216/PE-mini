@@ -28,7 +28,7 @@ export type ChoiceSelectionMode = "single" | "multiple";
 
 export interface ChoiceQuestionConfig {
   options: string[];
-  /** Dashboard row grouping (e.g. 요소). Same value merges the left header cell. */
+  /** Dashboard row grouping (e.g. 요소). Empty or "없음" merges item column only. */
   category?: string;
   /** single = 1개 선택, multiple = 복수 선택 */
   selectionMode?: ChoiceSelectionMode;
@@ -53,6 +53,16 @@ export const SCORE_MIN = 1;
 export const SCORE_MAX = 7;
 export const SCORE_VALUES = [1, 2, 3, 4, 5, 6, 7] as const;
 export const DEFAULT_SCORE_VALUE = 4;
+
+export const SCORE_LABELS: Record<(typeof SCORE_VALUES)[number], string> = {
+  7: "매우 선호",
+  6: "선호",
+  5: "약간 선호",
+  4: "보통",
+  3: "약간 비선호",
+  2: "비선호",
+  1: "매우 비선호",
+};
 
 export function isValidScoreValue(value: string): boolean {
   const score = Number(value);

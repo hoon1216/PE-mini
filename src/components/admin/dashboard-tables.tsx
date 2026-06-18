@@ -435,15 +435,26 @@ export function ChoiceComparisonSectionTable({
           <tbody>
             {rows.map((row, index) => (
               <tr key={row.questionId}>
-                {categoryRowSpans[index] !== null && (
+                {row.category ? (
+                  <>
+                    {categoryRowSpans[index] !== null && (
+                      <td
+                        rowSpan={categoryRowSpans[index]!}
+                        className={`${tdClass} align-middle font-medium`}
+                      >
+                        {row.category}
+                      </td>
+                    )}
+                    <td className={`${tdClass} text-left`}>{row.itemLabel}</td>
+                  </>
+                ) : (
                   <td
-                    rowSpan={categoryRowSpans[index]!}
-                    className={`${tdClass} align-middle font-medium`}
+                    colSpan={2}
+                    className={`${tdClass} text-left font-medium`}
                   >
-                    {row.category ?? ""}
+                    {row.itemLabel}
                   </td>
                 )}
-                <td className={`${tdClass} text-left`}>{row.itemLabel}</td>
                 {section.rankBlocks.map((block) => {
                   const blockRow = block.rows.find(
                     (item) => item.questionId === row.questionId

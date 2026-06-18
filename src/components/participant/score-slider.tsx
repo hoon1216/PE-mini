@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SCORE_MAX, SCORE_MIN, SCORE_VALUES } from "@/lib/types";
+import { SCORE_LABELS, SCORE_MAX, SCORE_MIN, SCORE_VALUES } from "@/lib/types";
 
 interface ScoreSliderProps {
   value: number;
@@ -43,7 +43,7 @@ export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
 
       <div className="relative px-1 py-2">
         <div
-          className="absolute left-4 right-4 top-1/2 h-1 -translate-y-1/2 rounded-full"
+          className="absolute left-4 right-4 top-[calc(50%+10px)] h-1 -translate-y-1/2 rounded-full"
           style={{ backgroundColor: active ? "#bfdbfe" : "#fecaca" }}
         />
         <div className="relative flex justify-between gap-0.5">
@@ -54,21 +54,31 @@ export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
                 type="button"
                 key={score}
                 onClick={() => select(score)}
-                aria-label={`${score}점`}
+                aria-label={`${score}점 ${SCORE_LABELS[score]}`}
                 aria-pressed={selected}
-                className="relative z-10 h-9 w-9 rounded-full border-2 border-white shadow-md transition-transform active:scale-95 sm:h-10 sm:w-10"
-                style={{
-                  backgroundColor: selected ? primary : secondary,
-                  boxShadow: selected
-                    ? `0 0 0 3px ${primary}33`
-                    : "0 1px 4px rgb(15 23 42 / 15%)",
-                }}
+                className="relative z-10 flex w-9 flex-col items-center gap-0.5 sm:w-10"
               >
                 <span
-                  className="text-xs font-bold sm:text-sm"
-                  style={{ color: selected ? "#ffffff" : primary }}
+                  className="whitespace-nowrap text-[9px] leading-tight text-muted sm:text-[10px]"
+                  aria-hidden
                 >
-                  {score}
+                  {SCORE_LABELS[score]}
+                </span>
+                <span
+                  className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white shadow-md transition-transform active:scale-95 sm:h-10 sm:w-10"
+                  style={{
+                    backgroundColor: selected ? primary : secondary,
+                    boxShadow: selected
+                      ? `0 0 0 3px ${primary}33`
+                      : "0 1px 4px rgb(15 23 42 / 15%)",
+                  }}
+                >
+                  <span
+                    className="text-xs font-bold sm:text-sm"
+                    style={{ color: selected ? "#ffffff" : primary }}
+                  >
+                    {score}
+                  </span>
                 </span>
               </button>
             );

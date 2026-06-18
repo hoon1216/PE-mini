@@ -3,6 +3,7 @@ import {
   buildChoiceComparisonSectionStats,
   buildComparisonSegments,
   isChoiceComparisonSection,
+  normalizeChoiceCategory,
 } from "./choice-comparison-stats";
 import type { Answer, Response, SurveyDetail } from "./types";
 
@@ -67,6 +68,13 @@ function createSurvey(): SurveyDetail {
 }
 
 describe("choice-comparison-stats", () => {
+  it("normalizes empty or 없음 category", () => {
+    expect(normalizeChoiceCategory(undefined)).toBeNull();
+    expect(normalizeChoiceCategory("")).toBeNull();
+    expect(normalizeChoiceCategory("없음")).toBeNull();
+    expect(normalizeChoiceCategory("요소")).toBe("요소");
+  });
+
   it("detects rank-grouped sections with choice and text", () => {
     const section = createSurvey().sections[0];
     expect(isChoiceComparisonSection(section)).toBe(true);

@@ -282,10 +282,13 @@ function writeChoiceComparisonTable(
   ]);
 
   for (const row of rows) {
+    const categoryCell = row.category ?? "";
+    const itemCell = row.category ? row.itemLabel : row.itemLabel;
+
     writer.addRows([
       [
-        row.category ?? "",
-        row.itemLabel,
+        row.category ? categoryCell : row.itemLabel,
+        row.category ? itemCell : "",
         ...section.rankBlocks.flatMap((block) => {
           const blockRow = block.rows.find(
             (item) => item.questionId === row.questionId

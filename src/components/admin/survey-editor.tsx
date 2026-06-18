@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { Input, Textarea } from "@/components/ui/input";
 import { fetchJson } from "@/lib/fetch-json";
 import { createDefaultDemographicField } from "@/lib/demographic-field-utils";
@@ -1032,19 +1033,25 @@ export function SurveyEditor({
                     <div className="mt-3 space-y-2">
                       <div>
                         <label className="mb-1 block text-sm font-medium">
-                          대시보드 구분 (선택)
+                          구분
                         </label>
                         <Input
                           value={choiceConfig.category ?? ""}
+                          list={`choice-category-${sectionIndex}-${questionIndex}`}
                           onChange={(e) =>
                             updateChoiceQuestion(sectionIndex, questionIndex, {
                               category: e.target.value || undefined,
                             })
                           }
-                          placeholder="예: 요소"
+                          placeholder="없음"
                         />
+                        <datalist id={`choice-category-${sectionIndex}-${questionIndex}`}>
+                          <option value="없음" />
+                          <option value="요소" />
+                        </datalist>
                         <p className="mt-1 text-xs text-muted">
-                          같은 구분명을 쓰면 대시보드에서 묶어 표시합니다.
+                          비우거나 「없음」이면 대시보드에서 항목명만 표시합니다.
+                          같은 구분명을 쓰면 묶어 표시합니다.
                         </p>
                       </div>
                       <div>
@@ -1243,13 +1250,20 @@ export function SurveyEditor({
                 문항 추가
               </Button>
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => duplicateSection(sectionIndex)}
-            >
-              섹션 복사
-            </Button>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => duplicateSection(sectionIndex)}
+              >
+                섹션 복사
+              </Button>
+              {sectionIndex === sections.length - 1 && (
+                <Button type="button" variant="secondary" onClick={addSection}>
+                  섹션 추가
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       ))}
@@ -1259,13 +1273,13 @@ export function SurveyEditor({
         demographicFields={demographicFields}
       />
 
-      <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="secondary" onClick={addSection}>
-          섹션 추가
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button type="button" onClick={handleSave} disabled={saving}>
           {saving ? "저장 중..." : "변경사항 저장"}
         </Button>
+        <ButtonLink href={`/admin/surveys/${surveyId}`} variant="secondary">
+          대시보드
+        </ButtonLink>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
