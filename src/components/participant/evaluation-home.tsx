@@ -14,7 +14,7 @@ import {
   isSectionCompleted,
   saveDraft,
   sectionHasQuestions,
-  type ScoreReasonDraftEntry,
+  type ScoreCompareDraftEntry,
 } from "@/lib/evaluation-draft";
 import type { RankingAnswer } from "@/lib/ranking-utils";
 import type { AgeGroup, Gender, SurveyDetail } from "@/lib/types";
@@ -35,14 +35,15 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
   >({});
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [draftScores, setDraftScores] = useState<Record<string, string>>({});
-  const [draftScoreReasons, setDraftScoreReasons] = useState<
-    Record<string, ScoreReasonDraftEntry>
+  const [draftScoreCompares, setDraftScoreCompares] = useState<
+    Record<string, ScoreCompareDraftEntry>
   >({});
   const [draftRankings, setDraftRankings] = useState<
     Record<string, RankingAnswer>
   >({});
   const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
   const [draftChoices, setDraftChoices] = useState<Record<string, string[]>>({});
+  const [draftReasons, setDraftReasons] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -56,10 +57,11 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
     setDemographicValues({ ...draft.demographicValues });
     setCompletedIds([...draft.completedSectionIds]);
     setDraftScores({ ...draft.scores });
-    setDraftScoreReasons({ ...draft.scoreReasons });
+    setDraftScoreCompares({ ...draft.scoreCompares });
     setDraftRankings({ ...draft.rankings });
     setDraftTexts({ ...draft.texts });
     setDraftChoices({ ...draft.choices });
+    setDraftReasons({ ...draft.reasons });
   }
 
   useEffect(() => {
@@ -127,10 +129,11 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
         demographicValues,
         completedSectionIds: completedIds,
         scores: draftScores,
-        scoreReasons: draftScoreReasons,
+        scoreCompares: draftScoreCompares,
         rankings: draftRankings,
         texts: draftTexts,
         choices: draftChoices,
+        reasons: draftReasons,
       }
     : null;
 
@@ -158,9 +161,11 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
     draft.demographicValues = demographicValues;
     draft.completedSectionIds = completedIds;
     draft.scores = draftScores;
+    draft.scoreCompares = draftScoreCompares;
     draft.rankings = draftRankings;
     draft.texts = draftTexts;
     draft.choices = draftChoices;
+    draft.reasons = draftReasons;
 
     try {
       await fetchJson(`/api/surveys/${survey.id}/responses`, {

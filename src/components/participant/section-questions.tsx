@@ -1,6 +1,8 @@
 "use client";
 
+import { CombinedReasonField } from "@/components/participant/combined-reason-field";
 import { ScoreSlider } from "@/components/participant/score-slider";
+import { questionIncludesReason } from "@/lib/combined-reason-utils";
 import {
   availableCombinationsForRank,
   emptyRankingAnswer,
@@ -24,12 +26,12 @@ import type {
   Question,
   RankingQuestionConfig,
   ScoreQuestionConfig,
-  ScoreReasonQuestionConfig,
+  ScoreCompareQuestionConfig,
   Section,
   TextQuestionConfig,
   ChoiceQuestionConfig,
 } from "@/lib/types";
-import type { ScoreReasonDraftEntry } from "@/lib/evaluation-draft";
+import type { ScoreCompareDraftEntry } from "@/lib/evaluation-draft";
 import { DEFAULT_SCORE_VALUE, SCORE_MAX, SCORE_MIN } from "@/lib/types";
 
 const RANK_LABELS: Record<RankingField, string> = {
@@ -67,14 +69,15 @@ function buildOrderedSegments(questions: Question[]): OrderedSegment[] {
 interface SectionQuestionsProps {
   section: Section & { questions: Question[] };
   scores: Record<string, string>;
-  scoreReasons: Record<string, ScoreReasonDraftEntry>;
+  scoreCompares: Record<string, ScoreCompareDraftEntry>;
   rankings: Record<string, RankingAnswer>;
   texts: Record<string, string>;
   choices: Record<string, string[]>;
+  reasons: Record<string, string>;
   onScoreChange: (questionId: string, score: number) => void;
-  onScoreReasonChange: (
+  onScoreCompareChange: (
     questionId: string,
-    patch: Partial<ScoreReasonDraftEntry> & {
+    patch: Partial<ScoreCompareDraftEntry> & {
       combination?: string;
       combinationScore?: string;
     }
@@ -86,20 +89,23 @@ interface SectionQuestionsProps {
   ) => void;
   onTextChange: (questionId: string, value: string) => void;
   onChoiceChange: (questionId: string, selected: string[]) => void;
+  onReasonChange: (questionId: string, value: string) => void;
 }
 
 export function SectionQuestions({
   section,
   scores,
-  scoreReasons,
+  scoreCompares,
   rankings,
   texts,
   choices,
+  reasons,
   onScoreChange,
-  onScoreReasonChange,
+  onScoreCompareChange,
   onRankingChange,
   onTextChange,
   onChoiceChange,
+  onReasonChange,
 }: SectionQuestionsProps) {
   const segments = buildOrderedSegments(section.questions);
   const rankGroupedTextSection = isRankGroupedTextSection(section);
@@ -116,8 +122,9 @@ export function SectionQuestions({
   const firstScoreSegmentIndex = segments.findIndex(
     (segment) => segment.kind === "score-group"
   );
-  const firstScoreReasonQuestionIndex = segments.findIndex(
-    (segment) => segment.kind === "question" && segment.question.type === "score-reason"
+  const firstScoreCompareQuestionIndex = segments.findIndex(
+    (segment) =>
+      segment.kind === "question" && segment.question.type === "score-compare"
   );
 
   return (
@@ -130,7 +137,7 @@ export function SectionQuestions({
             <div key={`score-${segment.category}-${segment.questions[0]?.id}`}>
               {showTypeLabel && (
                 <p className="mb-4 text-xs text-muted">
-                  점수 부과형 ({SCORE_MIN}~{SCORE_MAX}점)
+                  2. 안별 점수부과형 ({SCORE_MIN}~{SCORE_MAX}점)
                 </p>
               )}
               <div className="space-y-4">
@@ -156,6 +163,15 @@ export function SectionQuestions({
                               onScoreChange(question.id, score)
                             }
                           />
+                          {questionIncludesReason(question) && (
+                            <CombinedReasonField
+                              question={question}
+                              value={reasons[question.id] ?? ""}
+                              onChange={(value) =>
+                                onReasonChange(question.id, value)
+                              }
+                            />
+                          )}
                         </div>
                       );
                     })}
@@ -168,25 +184,27 @@ export function SectionQuestions({
 
         const question = segment.question;
 
-        if (question.type === "score-reason") {
-          const config = question.config as ScoreReasonQuestionConfig;
-          const entry = scoreReasons[question.id] ?? { scores: {}, reason: "" };
-          const maxLength = config.maxLength ?? 500;
+        if (question.type === "score-compare") {
+          const config = question.config as ScoreCompareQuestionConfig;
+          const entry = scoreCompares[question.id] ?? { scores: {}, reason: "" };
+          const maxLength = config.reasonMaxLength ?? 500;
           const winners = getWinningCombinations(question, entry);
-          const showTypeLabel = index === firstScoreReasonQuestionIndex;
+          const showTypeLabel = index === firstScoreCompareQuestionIndex;
 
           return (
             <div key={question.id} className="space-y-4">
               {showTypeLabel && (
                 <p className="text-xs text-muted">
-                  점수 부과 및 이유 ({SCORE_MIN}~{SCORE_MAX}점)
+                  4. 안 점수 비교형 ({SCORE_MIN}~{SCORE_MAX}점)
                 </p>
               )}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="mb-3 text-sm font-semibold">{config.category}</p>
                 <p className="mb-3 text-xs text-muted">
-                  각 디자인안에 점수를 부여한 뒤, 가장 높은 점수를 준
-                  디자인안에 대한 이유를 입력해주세요.
+                  각 안에 점수를 부여해주세요.
+                  {questionIncludesReason(question)
+                    ? " 가장 높은 점수를 준 안에 대한 이유도 입력해주세요."
+                    : ""}
                 </p>
                 <div className="space-y-4">
                   {config.combinations.map((combination) => (
@@ -203,7 +221,7 @@ export function SectionQuestions({
                         )}
                         isSet={!!entry.scores[combination]}
                         onChange={(score) =>
-                          onScoreReasonChange(question.id, {
+                          onScoreCompareChange(question.id, {
                             combination,
                             combinationScore: String(score),
                           })
@@ -211,25 +229,25 @@ export function SectionQuestions({
                       />
                     </div>
                   ))}
-                  {winners.length > 0 && (
+                  {questionIncludesReason(question) && winners.length > 0 && (
                     <div className="space-y-2 rounded-lg border border-border bg-card p-3">
                       <label
-                        htmlFor={`score-reason-${question.id}`}
+                        htmlFor={`score-compare-${question.id}`}
                         className="block text-sm font-medium"
                       >
                         {winners.join(", ")} 선호 이유
                       </label>
                       <textarea
-                        id={`score-reason-${question.id}`}
+                        id={`score-compare-${question.id}`}
                         value={entry.reason}
                         onChange={(e) =>
-                          onScoreReasonChange(question.id, {
+                          onScoreCompareChange(question.id, {
                             reason: e.target.value,
                           })
                         }
                         placeholder={
-                          config.placeholder ??
-                          "가장 높은 점수를 준 디자인안에 대한 이유를 입력해주세요"
+                          config.reasonPlaceholder ??
+                          "가장 높은 점수를 준 안에 대한 이유를 입력해주세요"
                         }
                         maxLength={maxLength}
                         rows={3}
@@ -263,7 +281,7 @@ export function SectionQuestions({
                 {question.title !== "순위 문항" ? question.title : "순위 선정"}
               </p>
               <p className="text-xs text-muted">
-                순위 선정형 ({rankFields.length}순위까지 선택)
+                3. 순위 선정형 ({rankFields.length}순위까지 선택)
               </p>
               {rankFields.map((field) => (
                 <div key={field}>
@@ -290,6 +308,13 @@ export function SectionQuestions({
                   </select>
                 </div>
               ))}
+              {questionIncludesReason(question) && (
+                <CombinedReasonField
+                  question={question}
+                  value={reasons[question.id] ?? ""}
+                  onChange={(value) => onReasonChange(question.id, value)}
+                />
+              )}
             </div>
           );
         }
@@ -311,7 +336,7 @@ export function SectionQuestions({
                 <p className="text-xs text-muted">{question.description}</p>
               )}
               <p className="text-xs text-muted">
-                {isSingle ? "1개 선택" : "복수 선택 가능"}
+                1. 안 선택형 · {isSingle ? "1개 선택" : "복수 선택 가능"}
               </p>
               <div className="space-y-2">
                 {config.options.map((option) => {
@@ -340,6 +365,13 @@ export function SectionQuestions({
                   );
                 })}
               </div>
+              {questionIncludesReason(question) && (
+                <CombinedReasonField
+                  question={question}
+                  value={reasons[question.id] ?? ""}
+                  onChange={(value) => onReasonChange(question.id, value)}
+                />
+              )}
             </fieldset>
           );
         }
@@ -382,9 +414,9 @@ export function SectionQuestions({
                 htmlFor={`text-${question.id}`}
                 className="block text-sm font-medium"
               >
-                {question.title !== "주관식 문항"
+                {question.title !== "이유 기술 문항"
                   ? question.title
-                  : "주관식 답변"}
+                  : "5. 이유 기술형"}
               </label>
               {question.description && (
                 <p className="text-xs text-muted">{question.description}</p>

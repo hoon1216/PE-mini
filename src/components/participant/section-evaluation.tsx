@@ -13,7 +13,7 @@ import {
   saveDraft,
   sectionHasQuestions,
   validateSectionAnswers,
-  type ScoreReasonDraftEntry,
+  type ScoreCompareDraftEntry,
 } from "@/lib/evaluation-draft";
 import type { RankingAnswer } from "@/lib/ranking-utils";
 import type { SurveyDetail } from "@/lib/types";
@@ -27,12 +27,13 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
   const router = useRouter();
   const [survey, setSurvey] = useState<SurveyDetail | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
-  const [scoreReasons, setScoreReasons] = useState<
-    Record<string, ScoreReasonDraftEntry>
+  const [scoreCompares, setScoreCompares] = useState<
+    Record<string, ScoreCompareDraftEntry>
   >({});
   const [rankings, setRankings] = useState<Record<string, RankingAnswer>>({});
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string[]>>({});
+  const [reasons, setReasons] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -43,10 +44,11 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
         setSurvey(data);
         const draft = getOrCreateDraft(data.id);
         setScores({ ...draft.scores });
-        setScoreReasons({ ...draft.scoreReasons });
+        setScoreCompares({ ...draft.scoreCompares });
         setRankings({ ...draft.rankings });
         setTexts({ ...draft.texts });
         setChoices({ ...draft.choices });
+        setReasons({ ...draft.reasons });
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "조사 로딩 실패")
@@ -79,10 +81,11 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
     const validationError = validateSectionAnswers(
       section,
       scores,
-      scoreReasons,
+      scoreCompares,
       rankings,
       texts,
-      choices
+      choices,
+      reasons
     );
     if (validationError) {
       setError(validationError);
@@ -94,10 +97,11 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
 
     const draft = getOrCreateDraft(survey.id);
     draft.scores = { ...draft.scores, ...scores };
-    draft.scoreReasons = { ...draft.scoreReasons, ...scoreReasons };
+    draft.scoreCompares = { ...draft.scoreCompares, ...scoreCompares };
     draft.rankings = { ...draft.rankings, ...rankings };
     draft.texts = { ...draft.texts, ...texts };
     draft.choices = { ...draft.choices, ...choices };
+    draft.reasons = { ...draft.reasons, ...reasons };
 
     if (!draft.completedSectionIds.includes(sectionId)) {
       draft.completedSectionIds = [...draft.completedSectionIds, sectionId];
@@ -184,15 +188,16 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
         <SectionQuestions
           section={section}
           scores={scores}
-          scoreReasons={scoreReasons}
+          scoreCompares={scoreCompares}
           rankings={rankings}
           texts={texts}
           choices={choices}
+          reasons={reasons}
           onScoreChange={(questionId, score) =>
             setScores((prev) => ({ ...prev, [questionId]: String(score) }))
           }
-          onScoreReasonChange={(questionId, patch) =>
-            setScoreReasons((prev) => {
+          onScoreCompareChange={(questionId, patch) =>
+            setScoreCompares((prev) => {
               const current = prev[questionId] ?? { scores: {}, reason: "" };
               const nextScores = { ...current.scores };
 
@@ -216,6 +221,9 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
           }
           onChoiceChange={(questionId, selected) =>
             setChoices((prev) => ({ ...prev, [questionId]: selected }))
+          }
+          onReasonChange={(questionId, value) =>
+            setReasons((prev) => ({ ...prev, [questionId]: value }))
           }
         />
       </div>

@@ -3,27 +3,31 @@ import {
   getWinningCombinations,
   parseScoreReasonAnswer,
   serializeScoreReasonAnswer,
-  validateScoreReasonQuestion,
+  validateScoreCompareQuestion,
 } from "./score-reason-utils";
 import type { Question } from "./types";
 
-function createQuestion(combinations: string[]): Question {
+function createQuestion(
+  combinations: string[],
+  includeReason = false
+): Question {
   return {
-    id: "q-score-reason",
+    id: "q-score-compare",
     sectionId: "section-1",
-    title: "점수 및 이유",
+    title: "안 점수 비교",
     description: null,
-    type: "score-reason",
+    type: "score-compare",
     config: {
       category: "최종 디자인",
       combinations,
-      maxLength: 500,
+      includeReason,
+      reasonMaxLength: 500,
     },
     sortOrder: 0,
   };
 }
 
-describe("score-reason-utils", () => {
+describe("score-compare-utils", () => {
   it("serializes and parses multi-design answers", () => {
     const value = serializeScoreReasonAnswer(
       { "디자인안 A": "6", "디자인안 B": "4" },
@@ -35,18 +39,18 @@ describe("score-reason-utils", () => {
     });
   });
 
-  it("requires reason for the highest-scored design option", () => {
-    const question = createQuestion(["디자인안 A", "디자인안 B"]);
+  it("requires reason only when includeReason is enabled", () => {
+    const question = createQuestion(["디자인안 A", "디자인안 B"], true);
 
     expect(
-      validateScoreReasonQuestion(question, {
+      validateScoreCompareQuestion(question, {
         scores: { "디자인안 A": "6", "디자인안 B": "4" },
         reason: "",
       })
-    ).toBe("가장 높은 점수를 준 디자인안에 대한 이유를 입력해주세요.");
+    ).toBe("이유를 입력해주세요.");
 
     expect(
-      validateScoreReasonQuestion(question, {
+      validateScoreCompareQuestion(question, {
         scores: { "디자인안 A": "6", "디자인안 B": "4" },
         reason: "색감이 좋음",
       })

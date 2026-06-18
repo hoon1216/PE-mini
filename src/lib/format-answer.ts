@@ -1,22 +1,32 @@
 import { parseChoiceAnswer } from "./choice-utils";
+import {
+  extractReasonFromAnswer,
+  parseStoredScoreAnswer,
+} from "./combined-reason-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import { parseScoreReasonAnswer } from "./score-reason-utils";
 import type {
   ChoiceQuestionConfig,
   Question,
+  ScoreCompareQuestionConfig,
   ScoreQuestionConfig,
-  ScoreReasonQuestionConfig,
 } from "./types";
+
+function appendReason(base: string, reason: string): string {
+  const trimmed = reason.trim();
+  return trimmed ? `${base} / ${trimmed}` : base;
+}
 
 export function formatAnswerValue(question: Question, value: string): string {
   if (!value) return "-";
 
   if (question.type === "score") {
-    return `${value}점`;
+    const parsed = parseStoredScoreAnswer(value);
+    return appendReason(`${parsed.score}점`, parsed.reason);
   }
 
-  if (question.type === "score-reason") {
-    const config = question.config as ScoreReasonQuestionConfig;
+  if (question.type === "score-compare") {
+    const config = question.config as ScoreCompareQuestionConfig;
     const parsed = parseScoreReasonAnswer(value, config.combinations);
     if (!parsed) return value;
     const scoreParts = config.combinations
@@ -25,10 +35,7 @@ export function formatAnswerValue(question: Question, value: string): string {
         return typeof score === "number" ? `${combination}: ${score}점` : null;
       })
       .filter((part): part is string => part !== null);
-    const reason = parsed.reason.trim();
-    return reason
-      ? `${scoreParts.join(" / ")} / ${reason}`
-      : scoreParts.join(" / ");
+    return appendReason(scoreParts.join(" / "), parsed.reason);
   }
 
   if (question.type === "ranking") {
@@ -36,13 +43,13 @@ export function formatAnswerValue(question: Question, value: string): string {
     if (!parsed) return value;
     const parts = [`1순위: ${parsed.rank1}`, `2순위: ${parsed.rank2}`];
     if (parsed.rank3) parts.push(`3순위: ${parsed.rank3}`);
-    return parts.join(" / ");
+    return appendReason(parts.join(" / "), extractReasonFromAnswer(value));
   }
 
   if (question.type === "choice") {
     const config = question.config as ChoiceQuestionConfig;
     const selected = parseChoiceAnswer(value, config);
-    return selected.join(", ") || value;
+    return appendReason(selected.join(", ") || value, extractReasonFromAnswer(value));
   }
 
   return value;
@@ -53,23 +60,18 @@ export function questionDisplayLabel(question: Question): string {
     const config = question.config as ScoreQuestionConfig;
     return config.combination || question.title;
   }
-  if (question.type === "score-reason") {
-    const config = question.config as ScoreReasonQuestionConfig;
+  if (question.type === "score-compare") {
+    const config = question.config as ScoreCompareQuestionConfig;
     return config.combinations.join(", ") || question.title;
   }
   if (question.type === "ranking") {
     return question.title !== "순위 문항" ? question.title : "순위 선정";
   }
   if (question.type === "choice") {
-    return question.title !== "객관식 문항" ? question.title : "객관식";
+    return question.title !== "안 선택 문항" ? question.title : "안 선택";
   }
   if (question.type === "text") {
-    return question.title !== "주관식 문항" ? question.title : "주관식";
-  }
-  if (question.type === "score-reason") {
-    return question.title !== "점수 및 이유 문항"
-      ? question.title
-      : "점수 및 이유";
+    return question.title !== "이유 기술 문항" ? question.title : "이유 기술";
   }
   return question.title;
 }

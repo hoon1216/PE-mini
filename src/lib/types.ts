@@ -1,9 +1,16 @@
 export type QuestionType =
+  | "choice"
   | "score"
-  | "score-reason"
   | "ranking"
-  | "text"
-  | "choice";
+  | "score-compare"
+  | "text";
+
+export interface CombinedReasonFields {
+  /** 결합된 이유 기술형(5번) 입력 여부 */
+  includeReason?: boolean;
+  reasonPlaceholder?: string;
+  reasonMaxLength?: number;
+}
 export type Gender = "male" | "female";
 export type AgeGroup = "10s" | "20s" | "30s" | "40s" | "50s" | "60s";
 
@@ -13,19 +20,17 @@ export interface DemographicFieldConfig {
   options: string[];
 }
 
-export interface ScoreQuestionConfig {
+export interface ScoreQuestionConfig extends CombinedReasonFields {
   category: string;
   combination: string;
 }
 
-export interface ScoreReasonQuestionConfig {
+export interface ScoreCompareQuestionConfig extends CombinedReasonFields {
   category: string;
   combinations: string[];
-  placeholder?: string;
-  maxLength?: number;
 }
 
-export interface RankingQuestionConfig {
+export interface RankingQuestionConfig extends CombinedReasonFields {
   combinations: string[];
 }
 
@@ -38,7 +43,7 @@ export interface TextQuestionConfig {
 
 export type ChoiceSelectionMode = "single" | "multiple";
 
-export interface ChoiceQuestionConfig {
+export interface ChoiceQuestionConfig extends CombinedReasonFields {
   options: string[];
   /** Dashboard row grouping (e.g. 요소). Empty or "없음" merges item column only. */
   category?: string;
@@ -50,17 +55,25 @@ export interface ChoiceQuestionConfig {
 
 export type QuestionConfig =
   | ScoreQuestionConfig
-  | ScoreReasonQuestionConfig
+  | ScoreCompareQuestionConfig
   | RankingQuestionConfig
   | TextQuestionConfig
   | ChoiceQuestionConfig;
 
+export const QUESTION_TYPE_ORDER: QuestionType[] = [
+  "choice",
+  "score",
+  "ranking",
+  "score-compare",
+  "text",
+];
+
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
-  score: "점수 부과형",
-  "score-reason": "점수 부과 및 이유",
-  ranking: "순위 선정형",
-  text: "주관식",
-  choice: "객관식",
+  choice: "1. 안 선택형",
+  score: "2. 안별 점수부과형",
+  ranking: "3. 순위 선정형",
+  "score-compare": "4. 안 점수 비교형",
+  text: "5. 이유 기술형",
 };
 
 export const SCORE_MIN = 1;
@@ -337,7 +350,7 @@ export interface ScoreReasonCategoryStats {
   blocks: ScoreReasonBlockStats[];
 }
 
-export interface ScoreReasonSectionStats {
+export interface ScoreCompareSectionStats {
   sectionId: string;
   sectionTitle: string;
   scoreStats: ScoreSectionStats;
@@ -346,7 +359,7 @@ export interface ScoreReasonSectionStats {
 
 export type DashboardSectionTable =
   | { type: "score"; data: ScoreSectionStats }
-  | { type: "score-reason"; data: ScoreReasonSectionStats }
+  | { type: "score-compare"; data: ScoreCompareSectionStats }
   | { type: "ranking"; data: RankingSectionStats }
   | { type: "text"; data: TextSectionStats }
   | { type: "choice"; data: ChoiceSectionStats }
@@ -412,12 +425,13 @@ export const GENDER_LABELS: Record<Gender, string> = {
   female: "여",
 };
 
-export function defaultScoreReasonQuestionConfig(): ScoreReasonQuestionConfig {
+export function defaultScoreCompareQuestionConfig(): ScoreCompareQuestionConfig {
   return {
     category: "구분",
     combinations: ["디자인안 A", "디자인안 B"],
-    placeholder: "가장 높은 점수를 준 디자인안에 대한 이유를 입력해주세요",
-    maxLength: 500,
+    includeReason: false,
+    reasonPlaceholder: "가장 높은 점수를 준 안에 대한 이유를 입력해주세요",
+    reasonMaxLength: 500,
   };
 }
 
@@ -444,15 +458,15 @@ export function configForQuestionType(type: QuestionType): QuestionConfig {
   if (type === "ranking") return defaultRankingQuestionConfig();
   if (type === "text") return defaultTextQuestionConfig();
   if (type === "choice") return defaultChoiceQuestionConfig();
-  if (type === "score-reason") return defaultScoreReasonQuestionConfig();
+  if (type === "score-compare") return defaultScoreCompareQuestionConfig();
   return defaultScoreQuestionConfig();
 }
 
 export function defaultQuestionTitle(type: QuestionType): string {
   if (type === "ranking") return "순위 문항";
-  if (type === "text") return "주관식 문항";
-  if (type === "choice") return "객관식 문항";
-  if (type === "score-reason") return "점수 및 이유 문항";
+  if (type === "text") return "이유 기술 문항";
+  if (type === "choice") return "안 선택 문항";
+  if (type === "score-compare") return "안 점수 비교 문항";
   return "점수 문항";
 }
 

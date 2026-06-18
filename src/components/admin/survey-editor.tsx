@@ -7,7 +7,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { Input, Textarea } from "@/components/ui/input";
 import { fetchJson } from "@/lib/fetch-json";
 import { createDefaultDemographicField } from "@/lib/demographic-field-utils";
-import { configForType } from "@/lib/question-utils";
+import { configForType, normalizeQuestion, normalizeQuestionType } from "@/lib/question-utils";
 import {
   findPrecedingRankingQuestion,
   isRankGroupedTextSection,
@@ -19,7 +19,8 @@ import type {
   QuestionType,
   RankingQuestionConfig,
   ScoreQuestionConfig,
-  ScoreReasonQuestionConfig,
+  ScoreCompareQuestionConfig,
+  CombinedReasonFields,
   Section,
   SurveyDetail,
   TextQuestionConfig,
@@ -32,6 +33,7 @@ import {
   createDefaultQuestion,
   defaultQuestionTitle,
   QUESTION_TYPE_LABELS,
+  QUESTION_TYPE_ORDER,
 } from "@/lib/types";
 
 interface SurveyEditorProps {
@@ -56,39 +58,72 @@ function mapSurveyToEditorSections(data: SurveyDetail): EditorSection[] {
     title: section.title,
     description: section.description,
     sortOrder: section.sortOrder,
-    questions: section.questions.map((question) => ({
-      id: question.id,
-      title: question.title,
-      description: question.description,
-      type: question.type,
-      config: question.config,
-      sortOrder: question.sortOrder,
-    })),
+    questions: section.questions.map((question) => {
+      const normalized = normalizeQuestion(question);
+      return {
+        id: normalized.id,
+        title: normalized.title,
+        description: normalized.description,
+        type: normalized.type,
+        config: normalized.config,
+        sortOrder: normalized.sortOrder,
+      };
+    }),
   }));
 }
 
-function cloneQuestionConfig(question: EditorQuestion): QuestionConfig {
-  if (question.type === "score") {
-    return { ...(question.config as ScoreQuestionConfig) };
-  }
-  if (question.type === "score-reason") {
-    return { ...(question.config as ScoreReasonQuestionConfig) };
-  }
-  if (question.type === "text") {
-    return { ...(question.config as TextQuestionConfig) };
-  }
-  if (question.type === "choice") {
-    const config = question.config as ChoiceQuestionConfig;
-    return {
-      options: [...config.options],
-      selectionMode: choiceSelectionMode(config),
-    };
-  }
-  return {
-    combinations: [
-      ...(question.config as RankingQuestionConfig).combinations,
-    ],
-  };
+function ReasonCombineFields({
+  config,
+  onChange,
+}: {
+  config: CombinedReasonFields;
+  onChange: (patch: Partial<CombinedReasonFields>) => void;
+}) {
+  return (
+    <div className="mt-3 space-y-3 rounded-lg border border-dashed border-border p-3">
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={!!config.includeReason}
+          onChange={(e) =>
+            onChange({ includeReason: e.target.checked })
+          }
+        />
+        5. 이유 기술형과 결합
+      </label>
+      {config.includeReason && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              이유 입력 안내 (placeholder)
+            </label>
+            <Input
+              value={config.reasonPlaceholder ?? ""}
+              onChange={(e) =>
+                onChange({ reasonPlaceholder: e.target.value })
+              }
+              placeholder="이유를 입력해주세요"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              이유 최대 글자 수
+            </label>
+            <Input
+              type="number"
+              min={1}
+              value={config.reasonMaxLength ?? 500}
+              onChange={(e) =>
+                onChange({
+                  reasonMaxLength: Number(e.target.value) || 500,
+                })
+              }
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ReorderButtons({
@@ -240,7 +275,11 @@ export function SurveyEditor({
               (next.selectCount && next.selectCount > 1 ? "multiple" : "single");
             return {
               ...question,
-              config: { options: next.options, selectionMode },
+              config: {
+                ...next,
+                options: next.options,
+                selectionMode,
+              },
             };
           }),
         };
@@ -421,10 +460,10 @@ export function SurveyEditor({
     );
   }
 
-  function updateScoreReasonQuestion(
+  function updateScoreCompareQuestion(
     sectionIndex: number,
     questionIndex: number,
-    patch: Partial<ScoreReasonQuestionConfig>
+    patch: Partial<ScoreCompareQuestionConfig>
   ) {
     setSections((prev) =>
       prev.map((section, sIdx) => {
@@ -432,13 +471,13 @@ export function SurveyEditor({
         return {
           ...section,
           questions: section.questions.map((question, qIdx) => {
-            if (qIdx !== questionIndex || question.type !== "score-reason") {
+            if (qIdx !== questionIndex || question.type !== "score-compare") {
               return question;
             }
             return {
               ...question,
               config: {
-                ...(question.config as ScoreReasonQuestionConfig),
+                ...(question.config as ScoreCompareQuestionConfig),
                 ...patch,
               },
             };
@@ -448,7 +487,7 @@ export function SurveyEditor({
     );
   }
 
-  function updateScoreReasonCombination(
+  function updateScoreCompareCombination(
     sectionIndex: number,
     questionIndex: number,
     comboIndex: number,
@@ -460,10 +499,10 @@ export function SurveyEditor({
         return {
           ...section,
           questions: section.questions.map((question, qIdx) => {
-            if (qIdx !== questionIndex || question.type !== "score-reason") {
+            if (qIdx !== questionIndex || question.type !== "score-compare") {
               return question;
             }
-            const config = question.config as ScoreReasonQuestionConfig;
+            const config = question.config as ScoreCompareQuestionConfig;
             return {
               ...question,
               config: {
@@ -479,7 +518,7 @@ export function SurveyEditor({
     );
   }
 
-  function addScoreReasonCombination(
+  function addScoreCompareCombination(
     sectionIndex: number,
     questionIndex: number
   ) {
@@ -489,10 +528,10 @@ export function SurveyEditor({
         return {
           ...section,
           questions: section.questions.map((question, qIdx) => {
-            if (qIdx !== questionIndex || question.type !== "score-reason") {
+            if (qIdx !== questionIndex || question.type !== "score-compare") {
               return question;
             }
-            const config = question.config as ScoreReasonQuestionConfig;
+            const config = question.config as ScoreCompareQuestionConfig;
             return {
               ...question,
               config: {
@@ -506,7 +545,7 @@ export function SurveyEditor({
     );
   }
 
-  function removeScoreReasonCombination(
+  function removeScoreCompareCombination(
     sectionIndex: number,
     questionIndex: number,
     comboIndex: number
@@ -517,10 +556,10 @@ export function SurveyEditor({
         return {
           ...section,
           questions: section.questions.map((question, qIdx) => {
-            if (qIdx !== questionIndex || question.type !== "score-reason") {
+            if (qIdx !== questionIndex || question.type !== "score-compare") {
               return question;
             }
-            const config = question.config as ScoreReasonQuestionConfig;
+            const config = question.config as ScoreCompareQuestionConfig;
             if (config.combinations.length <= 2) return question;
             return {
               ...question,
@@ -529,6 +568,33 @@ export function SurveyEditor({
                 combinations: config.combinations.filter(
                   (_, index) => index !== comboIndex
                 ),
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function updateRankingQuestion(
+    sectionIndex: number,
+    questionIndex: number,
+    patch: Partial<RankingQuestionConfig>
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "ranking") {
+              return question;
+            }
+            return {
+              ...question,
+              config: {
+                ...(question.config as RankingQuestionConfig),
+                ...patch,
               },
             };
           }),
@@ -556,6 +622,7 @@ export function SurveyEditor({
             return {
               ...question,
               config: {
+                ...config,
                 combinations: config.combinations.map((combo, i) =>
                   i === comboIndex ? value : combo
                 ),
@@ -660,13 +727,24 @@ export function SurveyEditor({
         title: `${source.title} (복사)`,
         description: source.description,
         sortOrder: sectionIndex + 1,
-        questions: source.questions.map((question, index) => ({
-          title: question.title,
-          description: question.description,
-          type: question.type,
-          config: cloneQuestionConfig(question),
-          sortOrder: index,
-        })),
+        questions: source.questions.map((question, index) => {
+          const normalized = normalizeQuestion({
+            id: question.id ?? "draft",
+            sectionId: question.sectionId ?? "draft",
+            title: question.title,
+            description: question.description ?? null,
+            type: question.type as Question["type"],
+            config: question.config,
+            sortOrder: index,
+          });
+          return {
+            title: normalized.title,
+            description: normalized.description,
+            type: normalized.type,
+            config: normalized.config,
+            sortOrder: index,
+          };
+        }),
       };
 
       const next = [...prev];
@@ -781,22 +859,7 @@ export function SurveyEditor({
       });
 
       setDemographicFields(updated.demographicFields ?? []);
-      setSections(
-        updated.sections.map((section) => ({
-          id: section.id,
-          title: section.title,
-          description: section.description,
-          sortOrder: section.sortOrder,
-          questions: section.questions.map((question) => ({
-            id: question.id,
-            title: question.title,
-            description: question.description,
-            type: question.type,
-            config: question.config,
-            sortOrder: question.sortOrder,
-          })),
-        }))
-      );
+      setSections(mapSurveyToEditorSections(updated));
       setMessage("저장되었습니다.");
       router.refresh();
     } catch (err) {
@@ -987,9 +1050,9 @@ export function SurveyEditor({
                 question.type === "score"
                   ? (question.config as ScoreQuestionConfig)
                   : null;
-              const scoreReasonConfig =
-                question.type === "score-reason"
-                  ? (question.config as ScoreReasonQuestionConfig)
+              const scoreCompareConfig =
+                question.type === "score-compare"
+                  ? (question.config as ScoreCompareQuestionConfig)
                   : null;
               const rankingConfig =
                 question.type === "ranking"
@@ -1046,7 +1109,7 @@ export function SurveyEditor({
                         문항 유형
                       </label>
                       <select
-                        value={question.type}
+                        value={normalizeQuestionType(question.type)}
                         onChange={(e) =>
                           changeQuestionType(
                             sectionIndex,
@@ -1056,13 +1119,11 @@ export function SurveyEditor({
                         }
                         className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                       >
-                        {(Object.keys(QUESTION_TYPE_LABELS) as QuestionType[]).map(
-                          (type) => (
-                            <option key={type} value={type}>
-                              {QUESTION_TYPE_LABELS[type]}
-                            </option>
-                          )
-                        )}
+                        {QUESTION_TYPE_ORDER.map((type) => (
+                          <option key={type} value={type}>
+                            {QUESTION_TYPE_LABELS[type]}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
@@ -1099,21 +1160,27 @@ export function SurveyEditor({
                             combination: e.target.value,
                           })
                         }
-                        placeholder="디자인 안"
+                        placeholder="안 이름"
+                      />
+                      <ReasonCombineFields
+                        config={scoreConfig}
+                        onChange={(patch) =>
+                          updateScoreQuestion(sectionIndex, questionIndex, patch)
+                        }
                       />
                     </div>
                   )}
 
-                  {scoreReasonConfig && (
+                  {scoreCompareConfig && (
                     <div className="mt-3 space-y-3">
                       <div>
                         <label className="mb-1 block text-sm font-medium">
                           구분
                         </label>
                         <Input
-                          value={scoreReasonConfig.category}
+                          value={scoreCompareConfig.category}
                           onChange={(e) =>
-                            updateScoreReasonQuestion(
+                            updateScoreCompareQuestion(
                               sectionIndex,
                               questionIndex,
                               { category: e.target.value }
@@ -1124,7 +1191,7 @@ export function SurveyEditor({
                       </div>
                       <div className="space-y-2">
                         <p className="text-sm font-medium">디자인안 목록</p>
-                        {scoreReasonConfig.combinations.map(
+                        {scoreCompareConfig.combinations.map(
                           (combination, comboIndex) => (
                             <div
                               key={`${questionIndex}-design-${comboIndex}`}
@@ -1133,7 +1200,7 @@ export function SurveyEditor({
                               <Input
                                 value={combination}
                                 onChange={(e) =>
-                                  updateScoreReasonCombination(
+                                  updateScoreCompareCombination(
                                     sectionIndex,
                                     questionIndex,
                                     comboIndex,
@@ -1146,14 +1213,14 @@ export function SurveyEditor({
                                 type="button"
                                 variant="ghost"
                                 onClick={() =>
-                                  removeScoreReasonCombination(
+                                  removeScoreCompareCombination(
                                     sectionIndex,
                                     questionIndex,
                                     comboIndex
                                   )
                                 }
                                 disabled={
-                                  scoreReasonConfig.combinations.length <= 2
+                                  scoreCompareConfig.combinations.length <= 2
                                 }
                               >
                                 삭제
@@ -1166,7 +1233,7 @@ export function SurveyEditor({
                           variant="secondary"
                           className="mt-1"
                           onClick={() =>
-                            addScoreReasonCombination(
+                            addScoreCompareCombination(
                               sectionIndex,
                               questionIndex
                             )
@@ -1175,43 +1242,16 @@ export function SurveyEditor({
                           디자인안 추가
                         </Button>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                          <label className="mb-1 block text-sm font-medium">
-                            이유 입력 안내 (placeholder)
-                          </label>
-                          <Input
-                            value={scoreReasonConfig.placeholder ?? ""}
-                            onChange={(e) =>
-                              updateScoreReasonQuestion(
-                                sectionIndex,
-                                questionIndex,
-                                { placeholder: e.target.value }
-                              )
-                            }
-                            placeholder="가장 높은 점수를 준 디자인안에 대한 이유"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-sm font-medium">
-                            이유 최대 글자 수
-                          </label>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={scoreReasonConfig.maxLength ?? 500}
-                            onChange={(e) =>
-                              updateScoreReasonQuestion(
-                                sectionIndex,
-                                questionIndex,
-                                {
-                                  maxLength: Number(e.target.value) || 500,
-                                }
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
+                      <ReasonCombineFields
+                        config={scoreCompareConfig}
+                        onChange={(patch) =>
+                          updateScoreCompareQuestion(
+                            sectionIndex,
+                            questionIndex,
+                            patch
+                          )
+                        }
+                      />
                     </div>
                   )}
 
@@ -1261,6 +1301,12 @@ export function SurveyEditor({
                       >
                         조합 추가
                       </Button>
+                      <ReasonCombineFields
+                        config={rankingConfig}
+                        onChange={(patch) =>
+                          updateRankingQuestion(sectionIndex, questionIndex, patch)
+                        }
+                      />
                     </div>
                   )}
 
@@ -1368,6 +1414,12 @@ export function SurveyEditor({
                       >
                         선택지 추가
                       </Button>
+                      <ReasonCombineFields
+                        config={choiceConfig}
+                        onChange={(patch) =>
+                          updateChoiceQuestion(sectionIndex, questionIndex, patch)
+                        }
+                      />
                     </div>
                   )}
 
@@ -1469,13 +1521,11 @@ export function SurveyEditor({
                 }
                 className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               >
-                {(Object.keys(QUESTION_TYPE_LABELS) as QuestionType[]).map(
-                  (type) => (
-                    <option key={type} value={type}>
-                      {QUESTION_TYPE_LABELS[type]}
-                    </option>
-                  )
-                )}
+                {QUESTION_TYPE_ORDER.map((type) => (
+                  <option key={type} value={type}>
+                    {QUESTION_TYPE_LABELS[type]}
+                  </option>
+                ))}
               </select>
               <Button
                 type="button"

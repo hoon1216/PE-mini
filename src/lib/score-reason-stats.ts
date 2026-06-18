@@ -6,6 +6,7 @@ import {
   getReasonForQuestionResponse,
   getWinningCombinationForQuestionResponse,
 } from "./score-reason-utils";
+import { questionIncludesReason } from "./combined-reason-utils";
 import type {
   Answer,
   ComparisonSegment,
@@ -13,7 +14,7 @@ import type {
   Question,
   Response,
   ScoreReasonCategoryStats,
-  ScoreReasonQuestionConfig,
+  ScoreCompareQuestionConfig,
   Section,
 } from "./types";
 
@@ -23,7 +24,7 @@ function buildReasonBlocksForQuestion(
   answers: Answer[],
   segments: ComparisonSegment[]
 ): ScoreReasonCategoryStats["blocks"] {
-  const config = question.config as ScoreReasonQuestionConfig;
+  const config = question.config as ScoreCompareQuestionConfig;
   const blocks: ScoreReasonCategoryStats["blocks"] = [];
 
   for (const winningCombination of config.combinations) {
@@ -73,8 +74,10 @@ export function buildScoreReasonCategories(
 ): ScoreReasonCategoryStats[] {
   const segments = buildComparisonSegments(demographicFields, responses);
 
-  return scoreReasonQuestions.map((question) => {
-    const config = question.config as ScoreReasonQuestionConfig;
+  return scoreReasonQuestions
+    .filter(questionIncludesReason)
+    .map((question) => {
+    const config = question.config as ScoreCompareQuestionConfig;
     return {
       category: config.category,
       blocks: buildReasonBlocksForQuestion(

@@ -575,4 +575,165 @@ describe("computeDashboardStats", () => {
       expect(sizeY?.averageRank).toBe(1);
     }
   });
+
+  it("groups text responses by score-compare final design rank1", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-score",
+          surveyId: "survey-1",
+          title: "점수",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-final",
+              sectionId: "section-score",
+              title: "최종 디자인",
+              description: null,
+              type: "score-compare",
+              config: {
+                category: "최종 디자인",
+                combinations: ["A안", "B안"],
+              },
+              sortOrder: 0,
+            },
+          ],
+        },
+        {
+          id: "section-black",
+          surveyId: "survey-1",
+          title: "블랙",
+          description: null,
+          sortOrder: 1,
+          questions: [
+            {
+              id: "q-text-black",
+              sectionId: "section-black",
+              title: "의견",
+              description: null,
+              type: "text",
+              config: { maxLength: 500 },
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    };
+
+    const responses = createResponses();
+    const answers: Answer[] = [
+      {
+        id: "a1",
+        responseId: "resp-1",
+        questionId: "q-final",
+        value: JSON.stringify({
+          scores: { "A안": 6, "B안": 4 },
+          reason: "A안 선호",
+        }),
+      },
+      {
+        id: "a2",
+        responseId: "resp-2",
+        questionId: "q-final",
+        value: JSON.stringify({
+          scores: { "A안": 4, "B안": 6 },
+          reason: "B안 선호",
+        }),
+      },
+      {
+        id: "a3",
+        responseId: "resp-1",
+        questionId: "q-text-black",
+        value: "A안 의견",
+      },
+      {
+        id: "a4",
+        responseId: "resp-2",
+        questionId: "q-text-black",
+        value: "B안 의견",
+      },
+    ];
+
+    const stats = computeDashboardStats(survey, responses, answers);
+    const textTable = stats.sectionGroups[1].tables.find(
+      (table) => table.type === "text"
+    );
+
+    expect(textTable?.type).toBe("text");
+    if (textTable?.type === "text") {
+      expect(textTable.data.groupedByFinalDesignRank1).toBe(true);
+      const item = textTable.data.demographicItems[0];
+      expect(
+        item.byRank1Demographic["A안"][demographicKey("20s", "male")]
+      ).toEqual(["A안 의견"]);
+      expect(
+        item.byRank1Demographic["B안"][demographicKey("30s", "female")]
+      ).toEqual(["B안 의견"]);
+    }
+  });
+
+  it("shows score and score-compare tables together in one section", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-mixed",
+          surveyId: "survey-1",
+          title: "혼합",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-score-compare",
+              sectionId: "section-mixed",
+              title: "최종",
+              description: null,
+              type: "score-compare",
+              config: {
+                category: "최종 디자인",
+                combinations: ["A안", "B안"],
+              },
+              sortOrder: 0,
+            },
+            {
+              id: "q-score-color",
+              sectionId: "section-mixed",
+              title: "색상",
+              description: null,
+              type: "score",
+              config: { category: "색상", combination: "레드" },
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    const stats = computeDashboardStats(
+      survey,
+      createResponses(),
+      [
+        {
+          id: "a1",
+          responseId: "resp-1",
+          questionId: "q-score-compare",
+          value: JSON.stringify({
+            scores: { "A안": 6, "B안": 4 },
+            reason: "A안",
+          }),
+        },
+        {
+          id: "a2",
+          responseId: "resp-1",
+          questionId: "q-score-color",
+          value: "5",
+        },
+      ]
+    );
+
+    const tableTypes = stats.sectionGroups[0].tables.map((table) => table.type);
+    expect(tableTypes).toEqual(["score-compare", "score"]);
+  });
 });

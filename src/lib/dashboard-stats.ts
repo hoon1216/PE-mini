@@ -192,7 +192,7 @@ function buildScoreSectionStats(
   customField: DemographicFieldConfig | null
 ): ScoreSectionStats {
   const scoreItems = scoreQuestions.flatMap((question) => {
-    if (question.type === "score-reason") {
+    if (question.type === "score-compare") {
       return flattenScoreReasonQuestions([question]);
     }
 
@@ -601,30 +601,54 @@ function buildChoiceSectionStats(
   };
 }
 
-export function computeDashboardStats(
+function buildSectionTables(
   survey: SurveyDetail,
+  section: Section & { questions: Question[] },
   responses: Response[],
-  answers: Answer[]
-): DashboardStats {
-  const demographics = buildDemographics(responses, survey.demographicFields);
-  const ageGroups = demographics.ageGroups;
+  answers: Answer[],
+  ageGroups: AgeGroup[]
+): DashboardStats["sectionGroups"][number]["tables"] {
+  const tables: DashboardStats["sectionGroups"][number]["tables"] = [];
+  const questions = [...section.questions].sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+  const comparisonStats = buildChoiceComparisonSectionStats(
+    survey,
+    section,
+    responses,
+    answers
+  );
+  const textQuestions = questions.filter((question) => question.type === "text");
+  const precedingRanking = findPrecedingRankingQuestion(section);
+  const rankingQuestion =
+    precedingRanking?.id && precedingRanking.title !== undefined
+      ? (precedingRanking as GroupingQuestion & { id: string; title: string })
+      : null;
 
-  const sectionGroups = survey.sections.map((section) => {
-    const tables: DashboardStats["sectionGroups"][number]["tables"] = [];
-    const scoreQuestions = section.questions.filter((q) => q.type === "score");
-    const scoreReasonQuestions = section.questions.filter(
-      (q) => q.type === "score-reason"
-    );
+  let comparisonAdded = false;
+  let textAdded = false;
+  let index = 0;
 
-    if (scoreReasonQuestions.length > 0) {
+  while (index < questions.length) {
+    const question = questions[index];
+
+    if (question.type === "score-compare") {
+      const batch = [question];
+      while (
+        index + batch.length < questions.length &&
+        questions[index + batch.length].type === "score-compare"
+      ) {
+        batch.push(questions[index + batch.length]);
+      }
+
       tables.push({
-        type: "score-reason",
+        type: "score-compare",
         data: {
           sectionId: section.id,
           sectionTitle: section.title,
           scoreStats: buildScoreSectionStats(
             section,
-            scoreReasonQuestions,
+            batch,
             responses,
             answers,
             ageGroups,
@@ -632,28 +656,42 @@ export function computeDashboardStats(
           ),
           reasonCategories: buildScoreReasonCategories(
             section,
-            scoreReasonQuestions,
+            batch,
             responses,
             answers,
             survey.demographicFields
           ),
         },
       });
-    } else if (scoreQuestions.length > 0) {
+      index += batch.length;
+      continue;
+    }
+
+    if (question.type === "score") {
+      const batch = [question];
+      while (
+        index + batch.length < questions.length &&
+        questions[index + batch.length].type === "score"
+      ) {
+        batch.push(questions[index + batch.length]);
+      }
+
       tables.push({
         type: "score",
         data: buildScoreSectionStats(
           section,
-          scoreQuestions,
+          batch,
           responses,
           answers,
           ageGroups,
           survey.demographicFields[0] ?? null
         ),
       });
+      index += batch.length;
+      continue;
     }
 
-    for (const question of section.questions.filter((q) => q.type === "ranking")) {
+    if (question.type === "ranking") {
       tables.push({
         type: "ranking",
         data: buildRankingSectionStats(
@@ -664,46 +702,20 @@ export function computeDashboardStats(
           ageGroups
         ),
       });
+      index += 1;
+      continue;
     }
 
-    const comparisonStats = buildChoiceComparisonSectionStats(
-      survey,
-      section,
-      responses,
-      answers
-    );
-
-    if (comparisonStats) {
-      tables.push({
-        type: "choice-comparison",
-        data: comparisonStats,
-      });
-    } else {
-      const textQuestions = section.questions.filter((q) => q.type === "text");
-      if (textQuestions.length > 0) {
-        tables.push({
-          type: "text",
-          data: buildTextSectionStats(
-            survey,
-            section,
-            textQuestions,
-            responses,
-            answers,
-            ageGroups
-          ),
-        });
-      }
-
-      for (const question of section.questions.filter((q) => q.type === "choice")) {
-        const precedingRanking = findPrecedingRankingQuestion(section);
-        const rankingQuestion =
-          precedingRanking?.id && precedingRanking.title !== undefined
-            ? (precedingRanking as GroupingQuestion & {
-                id: string;
-                title: string;
-              })
-            : null;
-
+    if (question.type === "choice") {
+      if (comparisonStats) {
+        if (!comparisonAdded) {
+          tables.push({
+            type: "choice-comparison",
+            data: comparisonStats,
+          });
+          comparisonAdded = true;
+        }
+      } else {
         tables.push({
           type: "choice",
           data: buildChoiceSectionStats(
@@ -715,15 +727,60 @@ export function computeDashboardStats(
           ),
         });
       }
+      index += 1;
+      continue;
     }
 
-    return {
-      sectionId: section.id,
-      sectionTitle: section.title,
-      sortOrder: section.sortOrder,
-      tables,
-    };
-  });
+    if (question.type === "text") {
+      if (comparisonStats) {
+        index += 1;
+        continue;
+      }
+
+      if (!textAdded && textQuestions.length > 0) {
+        tables.push({
+          type: "text",
+          data: buildTextSectionStats(
+            survey,
+            section,
+            textQuestions,
+            responses,
+            answers,
+            ageGroups
+          ),
+        });
+        textAdded = true;
+      }
+      index += 1;
+      continue;
+    }
+
+    index += 1;
+  }
+
+  return tables;
+}
+
+export function computeDashboardStats(
+  survey: SurveyDetail,
+  responses: Response[],
+  answers: Answer[]
+): DashboardStats {
+  const demographics = buildDemographics(responses, survey.demographicFields);
+  const ageGroups = demographics.ageGroups;
+
+  const sectionGroups = survey.sections.map((section) => ({
+    sectionId: section.id,
+    sectionTitle: section.title,
+    sortOrder: section.sortOrder,
+    tables: buildSectionTables(
+      survey,
+      section,
+      responses,
+      answers,
+      ageGroups
+    ),
+  }));
 
   return {
     totalResponses: responses.length,

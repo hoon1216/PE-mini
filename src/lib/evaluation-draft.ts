@@ -1,7 +1,16 @@
 import {
-  serializeChoiceAnswer,
   validateChoiceAnswer,
 } from "./choice-utils";
+import {
+  parseStoredChoiceAnswer,
+  parseStoredRankingAnswer,
+  parseStoredScoreAnswer,
+  questionIncludesReason,
+  serializeStoredChoiceAnswer,
+  serializeStoredRankingAnswer,
+  serializeStoredScoreAnswer,
+  validateCombinedReasonText,
+} from "./combined-reason-utils";
 import {
   getRank1ForSection,
   isTextQuestionRequired,
@@ -13,29 +22,32 @@ import {
 } from "./demographic-field-utils";
 import {
   normalizeRankingAnswer,
-  serializeRankingAnswer,
   validateRankingAnswer,
   type RankingAnswer,
 } from "./ranking-utils";
 import {
   serializeScoreReasonAnswer,
-  validateScoreReasonQuestion,
+  validateScoreCompareQuestion,
 } from "./score-reason-utils";
 import type {
   AgeGroup,
+  ChoiceQuestionConfig,
   Gender,
   Question,
   RankingQuestionConfig,
+  ScoreCompareQuestionConfig,
   Section,
   SurveyDetail,
   TextQuestionConfig,
-  ChoiceQuestionConfig,
 } from "./types";
 
-export interface ScoreReasonDraftEntry {
+export interface ScoreCompareDraftEntry {
   scores: Record<string, string>;
   reason: string;
 }
+
+/** @deprecated use ScoreCompareDraftEntry */
+export type ScoreReasonDraftEntry = ScoreCompareDraftEntry;
 
 export interface EvaluationDraft {
   surveyId: string;
@@ -45,10 +57,13 @@ export interface EvaluationDraft {
   demographicValues: Record<string, string>;
   completedSectionIds: string[];
   scores: Record<string, string>;
-  scoreReasons: Record<string, ScoreReasonDraftEntry>;
+  scoreCompares: Record<string, ScoreCompareDraftEntry>;
+  /** @deprecated use scoreCompares */
+  scoreReasons?: Record<string, ScoreCompareDraftEntry>;
   rankings: Record<string, RankingAnswer>;
   texts: Record<string, string>;
   choices: Record<string, string[]>;
+  reasons: Record<string, string>;
 }
 
 function normalizeDraftChoices(
@@ -82,10 +97,11 @@ export function createEmptyDraft(surveyId: string): EvaluationDraft {
     demographicValues: {},
     completedSectionIds: [],
     scores: {},
-    scoreReasons: {},
+    scoreCompares: {},
     rankings: {},
     texts: {},
     choices: {},
+    reasons: {},
   };
 }
 
@@ -95,12 +111,14 @@ export function loadDraft(surveyId: string): EvaluationDraft | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<EvaluationDraft>;
+    const scoreCompares = parsed.scoreCompares ?? parsed.scoreReasons ?? {};
     return {
       ...createEmptyDraft(surveyId),
       ...parsed,
       texts: parsed.texts ?? {},
-      scoreReasons: parsed.scoreReasons ?? {},
+      scoreCompares,
       choices: normalizeDraftChoices(parsed.choices),
+      reasons: parsed.reasons ?? {},
       demographicValues: normalizeDemographicValues(parsed.demographicValues),
     };
   } catch {
@@ -122,65 +140,106 @@ export function getOrCreateDraft(surveyId: string): EvaluationDraft {
   return loadDraft(surveyId) ?? createEmptyDraft(surveyId);
 }
 
+export function getScoreCompareEntry(
+  draft: Pick<EvaluationDraft, "scoreCompares">,
+  questionId: string
+): ScoreCompareDraftEntry {
+  return draft.scoreCompares[questionId] ?? { scores: {}, reason: "" };
+}
+
 export function sectionHasQuestions(
   section: Section & { questions: Question[] }
 ): boolean {
   return section.questions.some(
     (q) =>
       q.type === "score" ||
-      q.type === "score-reason" ||
+      q.type === "score-compare" ||
       q.type === "ranking" ||
       q.type === "text" ||
       q.type === "choice"
   );
 }
 
+function validateQuestionAnswer(
+  question: Question,
+  section: Section & { questions: Question[] },
+  draft: Pick<
+    EvaluationDraft,
+    "scores" | "scoreCompares" | "rankings" | "texts" | "choices" | "reasons"
+  >,
+  rank1: string
+): string | null {
+  if (question.type === "score-compare") {
+    return validateScoreCompareQuestion(
+      question,
+      getScoreCompareEntry(draft, question.id)
+    );
+  }
+
+  if (question.type === "score") {
+    if (!draft.scores[question.id]) {
+      return "모든 항목의 점수를 선택해주세요.";
+    }
+    return validateCombinedReasonText(
+      draft.reasons[question.id],
+      question.config as ScoreCompareQuestionConfig
+    );
+  }
+
+  if (question.type === "ranking") {
+    const config = question.config as RankingQuestionConfig;
+    const rankingError = validateRankingAnswer(
+      draft.rankings[question.id],
+      config.combinations.length
+    );
+    if (rankingError) return rankingError;
+    return validateCombinedReasonText(
+      draft.reasons[question.id],
+      config
+    );
+  }
+
+  if (question.type === "text") {
+    if (
+      isTextQuestionRequired(question, section, rank1) &&
+      !draft.texts[question.id]?.trim()
+    ) {
+      return "이유 기술 문항에 답변을 입력해주세요.";
+    }
+    return null;
+  }
+
+  if (question.type === "choice") {
+    const config = question.config as ChoiceQuestionConfig;
+    const choiceError = validateChoiceAnswer(
+      draft.choices[question.id] ?? [],
+      config
+    );
+    if (choiceError) return choiceError;
+    return validateCombinedReasonText(
+      draft.reasons[question.id],
+      config
+    );
+  }
+
+  return null;
+}
+
 export function validateSectionAnswers(
   section: Section & { questions: Question[] },
   scores: Record<string, string>,
-  scoreReasons: Record<string, ScoreReasonDraftEntry>,
+  scoreCompares: Record<string, ScoreCompareDraftEntry>,
   rankings: Record<string, RankingAnswer>,
   texts: Record<string, string>,
-  choices: Record<string, string[]>
+  choices: Record<string, string[]>,
+  reasons: Record<string, string> = {}
 ): string | null {
   const rank1 = getRank1ForSection(section, rankings);
+  const draft = { scores, scoreCompares, rankings, texts, choices, reasons };
 
   for (const question of section.questions) {
-    if (question.type === "score-reason") {
-      const categoryError = validateScoreReasonQuestion(
-        question,
-        scoreReasons[question.id]
-      );
-      if (categoryError) return categoryError;
-      continue;
-    }
-
-    if (question.type === "score") {
-      if (!scores[question.id]) {
-        return "모든 항목의 점수를 선택해주세요.";
-      }
-    } else if (question.type === "ranking") {
-      const config = question.config as RankingQuestionConfig;
-      const rankingError = validateRankingAnswer(
-        rankings[question.id],
-        config.combinations.length
-      );
-      if (rankingError) return rankingError;
-    } else if (question.type === "text") {
-      if (
-        isTextQuestionRequired(question, section, rank1) &&
-        !texts[question.id]?.trim()
-      ) {
-        return "주관식 문항에 답변을 입력해주세요.";
-      }
-    } else if (question.type === "choice") {
-      const config = question.config as ChoiceQuestionConfig;
-      const choiceError = validateChoiceAnswer(
-        choices[question.id] ?? [],
-        config
-      );
-      if (choiceError) return choiceError;
-    }
+    const error = validateQuestionAnswer(question, section, draft, rank1);
+    if (error) return error;
   }
 
   if (!sectionHasQuestions(section)) {
@@ -202,10 +261,11 @@ export function isSectionCompleted(
     validateSectionAnswers(
       section,
       draft.scores,
-      draft.scoreReasons,
+      draft.scoreCompares,
       draft.rankings,
       draft.texts,
-      draft.choices
+      draft.choices,
+      draft.reasons
     ) === null
   );
 }
@@ -242,10 +302,11 @@ export function validateDraftForSubmit(
     const error = validateSectionAnswers(
       section,
       draft.scores,
-      draft.scoreReasons,
+      draft.scoreCompares,
       draft.rankings,
       draft.texts,
-      draft.choices
+      draft.choices,
+      draft.reasons
     );
     if (error) return error;
   }
@@ -275,19 +336,23 @@ export function buildSubmitPayload(
         }
         answers.push({
           questionId: question.id,
-          value: score,
+          value: serializeStoredScoreAnswer(
+            score,
+            draft.reasons[question.id] ?? "",
+            questionIncludesReason(question)
+          ),
         });
-      } else if (question.type === "score-reason") {
-        const entry = draft.scoreReasons[question.id];
-        const validationError = validateScoreReasonQuestion(question, entry);
+      } else if (question.type === "score-compare") {
+        const entry = getScoreCompareEntry(draft, question.id);
+        const validationError = validateScoreCompareQuestion(question, entry);
         if (validationError) {
           throw new Error(validationError);
         }
         answers.push({
           questionId: question.id,
           value: serializeScoreReasonAnswer(
-            entry?.scores ?? {},
-            entry?.reason ?? ""
+            entry.scores,
+            questionIncludesReason(question) ? entry.reason : ""
           ),
         });
       } else if (question.type === "ranking") {
@@ -295,9 +360,11 @@ export function buildSubmitPayload(
         const ranking = normalizeRankingAnswer(draft.rankings[question.id]);
         answers.push({
           questionId: question.id,
-          value: serializeRankingAnswer(
+          value: serializeStoredRankingAnswer(
             ranking,
-            config.combinations.length
+            config.combinations.length,
+            draft.reasons[question.id] ?? "",
+            questionIncludesReason(question)
           ),
         });
       } else if (question.type === "text") {
@@ -306,7 +373,7 @@ export function buildSubmitPayload(
         }
         const text = draft.texts[question.id]?.trim();
         if (!text) {
-          throw new Error("주관식 문항에 답변을 입력해주세요.");
+          throw new Error("이유 기술 문항에 답변을 입력해주세요.");
         }
         const config = question.config as TextQuestionConfig;
         const maxLength = config.maxLength ?? 500;
@@ -323,7 +390,12 @@ export function buildSubmitPayload(
         }
         answers.push({
           questionId: question.id,
-          value: serializeChoiceAnswer(selected, config),
+          value: serializeStoredChoiceAnswer(
+            selected,
+            draft.reasons[question.id] ?? "",
+            config,
+            questionIncludesReason(question)
+          ),
         });
       }
     }
@@ -348,4 +420,37 @@ export function isParticipantProfileComplete(
     !!draft.ageGroup &&
     isDemographicProfileComplete(survey.demographicFields, draft.demographicValues)
   );
+}
+
+/** Restore combined reason fields from stored answers when loading draft from answers. */
+export function hydrateDraftFromAnswers(
+  draft: EvaluationDraft,
+  questions: Question[],
+  answersByQuestionId: Map<string, string>
+): EvaluationDraft {
+  const next = { ...draft, reasons: { ...draft.reasons } };
+
+  for (const question of questions) {
+    const value = answersByQuestionId.get(question.id);
+    if (!value) continue;
+
+    if (question.type === "score") {
+      const parsed = parseStoredScoreAnswer(value);
+      next.scores[question.id] = parsed.score;
+      if (parsed.reason) next.reasons[question.id] = parsed.reason;
+    } else if (question.type === "score-compare") {
+      // handled via scoreCompares elsewhere if needed
+    } else if (question.type === "choice") {
+      const config = question.config as ChoiceQuestionConfig;
+      const parsed = parseStoredChoiceAnswer(value, config);
+      next.choices[question.id] = parsed.selected;
+      if (parsed.reason) next.reasons[question.id] = parsed.reason;
+    } else if (question.type === "ranking") {
+      const parsed = parseStoredRankingAnswer(value);
+      next.rankings[question.id] = parsed.ranking;
+      if (parsed.reason) next.reasons[question.id] = parsed.reason;
+    }
+  }
+
+  return next;
 }

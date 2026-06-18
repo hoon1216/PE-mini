@@ -1,7 +1,11 @@
 import { nanoid } from "nanoid";
 import type { Prisma } from "@prisma/client";
 import { computeDashboardStats } from "./dashboard-stats";
-import { migrateLegacyQuestions, normalizeQuestion } from "./question-utils";
+import {
+  isLegacyQuestionType,
+  migrateLegacyQuestions,
+  normalizeQuestion,
+} from "./question-utils";
 import {
   normalizeDemographicFields,
   normalizeDemographicValues,
@@ -154,12 +158,74 @@ function normalizeResponse(response: {
   };
 }
 
+async function persistLegacyQuestionTypeMigration(
+  survey: SurveyWithRelations
+): Promise<boolean> {
+  const updates: {
+    id: string;
+    type: string;
+    config: Prisma.InputJsonValue;
+    title: string;
+  }[] = [];
+
+  for (const section of survey.sections) {
+    for (const question of section.questions) {
+      if (!isLegacyQuestionType(question.type)) continue;
+
+      const normalized = normalizeQuestion({
+        id: question.id,
+        sectionId: question.sectionId,
+        title: question.title,
+        description: question.description,
+        type: question.type as Question["type"],
+        config: question.config as QuestionConfig,
+        sortOrder: question.sortOrder,
+      });
+
+      updates.push({
+        id: question.id,
+        type: normalized.type,
+        title: normalized.title,
+        config: normalized.config as unknown as Prisma.InputJsonValue,
+      });
+    }
+  }
+
+  if (updates.length === 0) return false;
+
+  await prismaTransaction.$transaction(async (tx) => {
+    for (const update of updates) {
+      await tx.question.update({
+        where: { id: update.id },
+        data: {
+          type: update.type,
+          title: update.title,
+          config: update.config,
+        },
+      });
+    }
+  }, TRANSACTION_OPTIONS);
+
+  return true;
+}
+
 async function fetchSurveyDetail(id: string): Promise<SurveyDetail | null> {
   const survey = await prisma.survey.findUnique({
     where: { id },
     include: surveyInclude,
   });
   if (!survey) return null;
+
+  const migrated = await persistLegacyQuestionTypeMigration(survey);
+  if (migrated) {
+    const refreshed = await prisma.survey.findUnique({
+      where: { id },
+      include: surveyInclude,
+    });
+    if (!refreshed) return null;
+    return buildSurveyDetail(refreshed);
+  }
+
   return buildSurveyDetail(survey);
 }
 
@@ -183,7 +249,7 @@ export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null
     include: surveyInclude,
   });
   if (!survey) return null;
-  return buildSurveyDetail(survey);
+  return fetchSurveyDetail(survey.id);
 }
 
 export async function deleteSurvey(surveyId: string): Promise<boolean> {

@@ -16,7 +16,7 @@ import type {
   RankingQuestionConfig,
   Response,
   ScoreQuestionConfig,
-  ScoreReasonQuestionConfig,
+  ScoreCompareQuestionConfig,
   Section,
   SurveyDetail,
 } from "./types";
@@ -121,9 +121,9 @@ function collectScoreReasonText(
   const parts: string[] = [];
 
   for (const question of section.questions.filter(
-    (entry) => entry.type === "score-reason"
+    (entry) => entry.type === "score-compare"
   )) {
-    const config = question.config as ScoreReasonQuestionConfig;
+    const config = question.config as ScoreCompareQuestionConfig;
     const parsed = parseScoreReasonAnswer(
       answersByQuestionId.get(question.id) ?? "",
       config.combinations
@@ -187,7 +187,7 @@ export function isPreferenceSection(
   section: Section & { questions: Question[] }
 ): boolean {
   const scoreCount = section.questions.filter(
-    (q) => q.type === "score" || q.type === "score-reason"
+    (q) => q.type === "score" || q.type === "score-compare"
   ).length;
   if (scoreCount > 0) return false;
 
@@ -205,11 +205,11 @@ function buildBodyColumn(
   const scoreRows: ScoreRow[] = [];
 
   for (const question of section.questions
-    .filter((q) => q.type === "score" || q.type === "score-reason")
+    .filter((q) => q.type === "score" || q.type === "score-compare")
     .sort((a, b) => a.sortOrder - b.sortOrder)) {
-    if (question.type === "score-reason") {
+    if (question.type === "score-compare") {
       const flattened = flattenScoreReasonQuestions([question]);
-      const config = question.config as ScoreReasonQuestionConfig;
+      const config = question.config as ScoreCompareQuestionConfig;
       const parsed = parseScoreReasonAnswer(
         answersByQuestionId.get(question.id) ?? "",
         config.combinations
@@ -286,7 +286,7 @@ export function buildEvaluationSheet(
   const sections = [...survey.sections].sort((a, b) => a.sortOrder - b.sortOrder);
   const bodySections = sections.filter((section) =>
     section.questions.some(
-      (question) => question.type === "score" || question.type === "score-reason"
+      (question) => question.type === "score" || question.type === "score-compare"
     )
   );
   const preferenceSection =

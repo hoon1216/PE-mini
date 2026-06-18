@@ -5,7 +5,7 @@ import type {
   Gender,
   RankingSectionStats,
   ScoreSectionStats,
-  ScoreReasonSectionStats,
+  ScoreCompareSectionStats,
   TextSectionStats,
   ChoiceSectionStats,
   ChoiceComparisonSectionStats,
@@ -16,6 +16,11 @@ import { demographicKey, scoreCustomFieldKey } from "@/lib/demographic-utils";
 import {
   getCategoryRowSpans,
 } from "@/lib/choice-comparison-stats";
+import {
+  dashboardTableKey,
+  dashboardTableTitle,
+  type DashboardTableEntry,
+} from "@/lib/dashboard-layout";
 
 const thClass =
   "border border-slate-300 bg-slate-100 px-2 py-2 text-center text-xs font-semibold";
@@ -505,8 +510,10 @@ function groupComparisonSegments(segments: ComparisonSegment[]) {
 
 export function ChoiceComparisonSectionTable({
   section,
+  tableLabel,
 }: {
   section: ChoiceComparisonSectionStats;
+  tableLabel?: string;
 }) {
   const segments =
     section.rankBlocks[0]?.segments ?? [];
@@ -526,7 +533,7 @@ export function ChoiceComparisonSectionTable({
                 colSpan={leftColSpan + rankColSpan * section.rankBlocks.length}
                 className={thClass}
               >
-                객관식 평가 비교
+                {tableLabel ?? section.sectionTitle}
               </th>
             </tr>
             <tr>
@@ -648,11 +655,6 @@ export function ChoiceComparisonSectionTable({
   );
 }
 
-function rankingTableLabel(questionTitle: string): string {
-  return questionTitle && questionTitle !== "순위 문항"
-    ? questionTitle
-    : "순위 선정형";
-}
 
 export function ChoiceSectionTable({
   section,
@@ -791,16 +793,16 @@ export function TextSectionTable({
   );
 }
 
-export function ScoreReasonSectionTable({
+export function ScoreCompareSectionTable({
   section,
 }: {
-  section: ScoreReasonSectionStats;
+  section: ScoreCompareSectionStats;
 }) {
   return (
     <div className="space-y-6">
       <ScoreSectionTable
         section={section.scoreStats}
-        tableLabel="점수 부과 및 이유"
+        tableLabel={section.sectionTitle}
       />
 
       {section.reasonCategories.map((category) => (
@@ -880,8 +882,62 @@ export function ScoreReasonSectionTable({
   );
 }
 
+function renderDashboardTable(entry: DashboardTableEntry) {
+  const { table } = entry;
+  const tableLabel = dashboardTableTitle(entry);
+
+  switch (table.type) {
+    case "score":
+      return (
+        <ScoreSectionTable
+          key={entry.key}
+          section={table.data}
+          tableLabel={tableLabel}
+        />
+      );
+    case "score-compare":
+      return (
+        <ScoreCompareSectionTable key={entry.key} section={table.data} />
+      );
+    case "ranking":
+      return (
+        <RankingSectionTable
+          key={entry.key}
+          section={table.data}
+          tableLabel={tableLabel}
+        />
+      );
+    case "text":
+      return (
+        <TextSectionTable
+          key={entry.key}
+          section={table.data}
+          tableLabel={tableLabel}
+        />
+      );
+    case "choice-comparison":
+      return (
+        <ChoiceComparisonSectionTable
+          key={entry.key}
+          section={table.data}
+          tableLabel={tableLabel}
+        />
+      );
+    case "choice":
+      return (
+        <ChoiceSectionTable
+          key={entry.key}
+          section={table.data}
+          tableLabel={tableLabel}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
 export function DashboardSectionTables({ stats }: { stats: DashboardStats }) {
-  const orderedGroups = [...stats.sectionGroups].sort(
+  const sectionGroups = [...stats.sectionGroups].sort(
     (a, b) => a.sortOrder - b.sortOrder
   );
 
@@ -891,51 +947,26 @@ export function DashboardSectionTables({ stats }: { stats: DashboardStats }) {
         <DemographicTable data={stats.demographics} />
       </div>
 
-      {orderedGroups.map((group) => {
-        if (group.tables.length === 0) return null;
+      {sectionGroups.map((section) => {
+        if (section.tables.length === 0) return null;
 
         return (
           <div
-            key={group.sectionId}
+            key={section.sectionId}
             className="rounded-2xl border border-border bg-card p-5 shadow-sm"
           >
-            <h3 className="text-lg font-semibold">{group.sectionTitle}</h3>
+            <h3 className="text-lg font-semibold">{section.sectionTitle}</h3>
             <div className="mt-4 space-y-6">
-              {group.tables.map((table) =>
-                table.type === "score" ? (
-                  <ScoreSectionTable
-                    key={`${group.sectionId}-score`}
-                    section={table.data}
-                    tableLabel="점수 부과형"
-                  />
-                ) : table.type === "score-reason" ? (
-                  <ScoreReasonSectionTable
-                    key={`${group.sectionId}-score-reason`}
-                    section={table.data}
-                  />
-                ) : table.type === "ranking" ? (
-                  <RankingSectionTable
-                    key={table.data.questionId}
-                    section={table.data}
-                    tableLabel={rankingTableLabel(table.data.questionTitle)}
-                  />
-                ) : table.type === "text" ? (
-                  <TextSectionTable
-                    key={`${group.sectionId}-text`}
-                    section={table.data}
-                  />
-                ) : table.type === "choice-comparison" ? (
-                  <ChoiceComparisonSectionTable
-                    key={`${group.sectionId}-choice-comparison`}
-                    section={table.data}
-                  />
-                ) : (
-                  <ChoiceSectionTable
-                    key={table.data.questionId}
-                    section={table.data}
-                  />
-                )
-              )}
+              {section.tables.map((table) => {
+                const entry: DashboardTableEntry = {
+                  key: dashboardTableKey(section.sectionId, table),
+                  sectionId: section.sectionId,
+                  sectionTitle: section.sectionTitle,
+                  sectionSortOrder: section.sortOrder,
+                  table,
+                };
+                return renderDashboardTable(entry);
+              })}
             </div>
           </div>
         );

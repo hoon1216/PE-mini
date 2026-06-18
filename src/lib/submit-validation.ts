@@ -1,23 +1,29 @@
 import {
-  parseChoiceAnswer,
   validateChoiceAnswer,
 } from "./choice-utils";
+import {
+  extractReasonFromAnswer,
+  parseStoredChoiceAnswer,
+  parseStoredScoreAnswer,
+  questionIncludesReason,
+  validateCombinedReasonText,
+} from "./combined-reason-utils";
 import { validateDemographicValues } from "./demographic-field-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import {
   parseScoreReasonAnswer,
-  validateScoreReasonQuestion,
+  validateScoreCompareQuestion,
 } from "./score-reason-utils";
 import type {
   AgeGroup,
+  ChoiceQuestionConfig,
   Gender,
   Question,
   RankingQuestionConfig,
-  ScoreReasonQuestionConfig,
+  ScoreCompareQuestionConfig,
   SubmitResponseInput,
   SurveyDetail,
   TextQuestionConfig,
-  ChoiceQuestionConfig,
 } from "./types";
 import { isValidScoreValue, SCORE_MAX, SCORE_MIN } from "./types";
 import { getRequiredQuestionsForSurvey } from "./text-grouping-utils";
@@ -72,14 +78,20 @@ function validateAnswerForQuestion(
   value: string
 ): string | null {
   if (question.type === "score") {
-    return validateScoreValue(value);
+    const parsed = parseStoredScoreAnswer(value);
+    const scoreError = validateScoreValue(parsed.score);
+    if (scoreError) return scoreError;
+    return validateCombinedReasonText(
+      parsed.reason,
+      question.config as ScoreCompareQuestionConfig
+    );
   }
 
-  if (question.type === "score-reason") {
-    const config = question.config as ScoreReasonQuestionConfig;
+  if (question.type === "score-compare") {
+    const config = question.config as ScoreCompareQuestionConfig;
     const parsed = parseScoreReasonAnswer(value, config.combinations);
     if (!parsed) {
-      return "점수 및 이유 답변 형식이 올바르지 않습니다.";
+      return "안 점수 비교 답변 형식이 올바르지 않습니다.";
     }
 
     for (const combination of config.combinations) {
@@ -89,9 +101,8 @@ function validateAnswerForQuestion(
       }
     }
 
-    const maxLength = config.maxLength ?? 500;
-    if (parsed.reason.trim().length > maxLength) {
-      return `이유는 ${maxLength}자 이하여야 합니다.`;
+    if (questionIncludesReason(question)) {
+      return validateCombinedReasonText(parsed.reason, config);
     }
 
     return null;
@@ -99,26 +110,30 @@ function validateAnswerForQuestion(
 
   if (question.type === "ranking") {
     const config = question.config as RankingQuestionConfig;
-    return validateRankingValue(value, config.combinations.length);
+    const rankingError = validateRankingValue(value, config.combinations.length);
+    if (rankingError) return rankingError;
+    return validateCombinedReasonText(extractReasonFromAnswer(value), config);
   }
 
   if (question.type === "text") {
     const trimmed = value.trim();
     if (!trimmed) {
-      return "주관식 문항에 답변을 입력해주세요.";
+      return "이유 기술 문항에 답변을 입력해주세요.";
     }
     const config = question.config as TextQuestionConfig;
     const maxLength = config.maxLength ?? 500;
     if (trimmed.length > maxLength) {
-      return `주관식 답변은 ${maxLength}자 이하여야 합니다.`;
+      return `답변은 ${maxLength}자 이하여야 합니다.`;
     }
     return null;
   }
 
   if (question.type === "choice") {
     const config = question.config as ChoiceQuestionConfig;
-    const selected = parseChoiceAnswer(value, config);
-    return validateChoiceAnswer(selected, config);
+    const parsed = parseStoredChoiceAnswer(value, config);
+    const choiceError = validateChoiceAnswer(parsed.selected, config);
+    if (choiceError) return choiceError;
+    return validateCombinedReasonText(parsed.reason, config);
   }
 
   return "지원하지 않는 문항 유형입니다.";
@@ -190,12 +205,14 @@ export function validateSubmitResponse(
   }
 
   for (const question of allQuestions) {
-    if (question.type !== "score-reason") continue;
+    if (question.type !== "score-compare" || !questionIncludesReason(question)) {
+      continue;
+    }
 
     const value = answerMap.get(question.id);
     if (!value) continue;
 
-    const config = question.config as ScoreReasonQuestionConfig;
+    const config = question.config as ScoreCompareQuestionConfig;
     const parsed = parseScoreReasonAnswer(value, config.combinations);
     const entry = parsed
       ? {
@@ -208,7 +225,7 @@ export function validateSubmitResponse(
           reason: parsed.reason,
         }
       : undefined;
-    const questionError = validateScoreReasonQuestion(question, entry);
+    const questionError = validateScoreCompareQuestion(question, entry);
     if (questionError) {
       throw new SubmitValidationError(questionError);
     }

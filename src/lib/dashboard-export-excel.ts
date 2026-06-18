@@ -16,12 +16,6 @@ function formatNum(value: number | null | undefined): string | number {
   return value;
 }
 
-function rankingTableLabel(questionTitle: string): string {
-  return questionTitle && questionTitle !== "순위 문항"
-    ? questionTitle
-    : "순위 선정형";
-}
-
 class SheetWriter {
   private row = 1;
 
@@ -96,7 +90,7 @@ function writeScoreTable(
       `${customField.label} ${option} 순위`,
     ]) ?? [];
 
-  writer.addTitle(`점수 부과형 — ${section.sectionTitle}`);
+  writer.addTitle(section.sectionTitle);
   writer.addRows([
     [
       "구분",
@@ -153,7 +147,7 @@ function writeScoreTable(
 
 function writeScoreReasonTable(
   writer: SheetWriter,
-  table: Extract<DashboardSectionTable, { type: "score-reason" }>
+  table: Extract<DashboardSectionTable, { type: "score-compare" }>
 ) {
   writeScoreTable(writer, {
     type: "score",
@@ -192,9 +186,7 @@ function writeRankingTable(
     )
   );
 
-  writer.addTitle(
-    `${rankingTableLabel(section.questionTitle)} — ${section.sectionTitle}`
-  );
+  writer.addTitle(section.sectionTitle);
   writer.addRows([
     [
       "조합",
@@ -237,7 +229,7 @@ function writeTextTable(
   table: Extract<DashboardSectionTable, { type: "text" }>
 ) {
   const section = table.data;
-  writer.addTitle(`주관식 — ${section.sectionTitle}`);
+  writer.addTitle(section.sectionTitle);
 
   if (section.groupedByFinalDesignRank1) {
     writer.addRows([["최종 디자인 1순위 기준"]]);
@@ -273,7 +265,7 @@ function writeChoiceComparisonTable(
   table: Extract<DashboardSectionTable, { type: "choice-comparison" }>
 ) {
   const section = table.data;
-  writer.addTitle(`객관식 평가 비교 — ${section.sectionTitle}`);
+  writer.addTitle(section.sectionTitle);
 
   const segments = section.rankBlocks[0]?.segments ?? [];
   const rows = section.rankBlocks[0]?.rows ?? [];
@@ -366,7 +358,7 @@ function writeChoiceTable(
   table: Extract<DashboardSectionTable, { type: "choice" }>
 ) {
   const section = table.data;
-  writer.addTitle(`${section.questionTitle} — ${section.sectionTitle}`);
+  writer.addTitle(section.questionTitle);
 
   const hasOptions = section.groups.some((group) => group.options.length > 0);
   if (!hasOptions) {
@@ -415,17 +407,16 @@ export async function buildDashboardExcelBuffer(
 
   writeDemographics(writer, stats);
 
-  const orderedGroups = [...stats.sectionGroups].sort(
+  for (const section of [...stats.sectionGroups].sort(
     (a, b) => a.sortOrder - b.sortOrder
-  );
+  )) {
+    if (section.tables.length === 0) continue;
 
-  for (const group of orderedGroups) {
-    if (group.tables.length === 0) continue;
-    writer.addTitle(group.sectionTitle);
+    writer.addTitle(section.sectionTitle);
 
-    for (const table of group.tables) {
+    for (const table of section.tables) {
       if (table.type === "score") writeScoreTable(writer, table);
-      if (table.type === "score-reason") writeScoreReasonTable(writer, table);
+      if (table.type === "score-compare") writeScoreReasonTable(writer, table);
       if (table.type === "ranking") writeRankingTable(writer, table);
       if (table.type === "text") writeTextTable(writer, table);
       if (table.type === "choice-comparison") {

@@ -1,10 +1,11 @@
+import { normalizeCombinedReasonFields } from "./combined-reason-utils";
 import type {
   Question,
   QuestionConfig,
   QuestionType,
   RankingQuestionConfig,
   ScoreQuestionConfig,
-  ScoreReasonQuestionConfig,
+  ScoreCompareQuestionConfig,
   TextQuestionConfig,
   ChoiceQuestionConfig,
 } from "./types";
@@ -15,7 +16,7 @@ import {
   defaultChoiceQuestionConfig,
   defaultRankingQuestionConfig,
   defaultScoreQuestionConfig,
-  defaultScoreReasonQuestionConfig,
+  defaultScoreCompareQuestionConfig,
   defaultTextQuestionConfig,
 } from "./types";
 
@@ -23,9 +24,29 @@ type LegacyScoreSectionConfig = { items?: { id: string; category: string; combin
 type LegacyRankingSectionConfig = { combinations?: string[] };
 type LegacySection = {
   id: string;
-  sectionType?: QuestionType;
+  sectionType?: string;
   config?: LegacyScoreSectionConfig | LegacyRankingSectionConfig;
 };
+
+const LEGACY_QUESTION_TYPES = new Set(["score-reason"]);
+
+export function normalizeQuestionType(type: string): QuestionType {
+  if (LEGACY_QUESTION_TYPES.has(type)) return "score-compare";
+  if (
+    type === "choice" ||
+    type === "score" ||
+    type === "ranking" ||
+    type === "score-compare" ||
+    type === "text"
+  ) {
+    return type;
+  }
+  return "score";
+}
+
+export function isLegacyQuestionType(type: string): boolean {
+  return LEGACY_QUESTION_TYPES.has(type);
+}
 
 export function normalizeQuestionConfig(
   type: QuestionType,
@@ -48,7 +69,12 @@ export function normalizeQuestionConfig(
     const selectionMode =
       raw.selectionMode ??
       ((raw.selectCount ?? 1) > 1 ? "multiple" : defaults.selectionMode ?? "single");
-    return { options, selectionMode };
+    return {
+      options,
+      selectionMode,
+      category: raw.category,
+      ...normalizeCombinedReasonFields(raw),
+    };
   }
 
   if (type === "score") {
@@ -58,30 +84,43 @@ export function normalizeQuestionConfig(
       return {
         category: first.category,
         combination: first.combination,
+        ...normalizeCombinedReasonFields(raw),
       };
     }
     return {
       category: raw.category ?? defaultScoreQuestionConfig().category,
       combination: raw.combination ?? defaultScoreQuestionConfig().combination,
+      ...normalizeCombinedReasonFields(raw),
     };
   }
 
-  if (type === "score-reason") {
-    const raw = (config ?? {}) as Partial<ScoreReasonQuestionConfig> & {
+  if (type === "score-compare") {
+    const raw = (config ?? {}) as Partial<ScoreCompareQuestionConfig> & {
       combination?: string;
+      placeholder?: string;
+      maxLength?: number;
     };
-    const defaults = defaultScoreReasonQuestionConfig();
+    const defaults = defaultScoreCompareQuestionConfig();
     const combinations = raw.combinations?.length
       ? raw.combinations
       : raw.combination
         ? [raw.combination]
         : defaults.combinations;
 
+    const reasonFields = normalizeCombinedReasonFields({
+      includeReason:
+        raw.includeReason ??
+        (raw.placeholder !== undefined || raw.maxLength !== undefined
+          ? true
+          : defaults.includeReason),
+      reasonPlaceholder: raw.reasonPlaceholder ?? raw.placeholder,
+      reasonMaxLength: raw.reasonMaxLength ?? raw.maxLength,
+    });
+
     return {
       category: raw.category ?? defaults.category,
       combinations,
-      placeholder: raw.placeholder ?? defaults.placeholder,
-      maxLength: raw.maxLength ?? defaults.maxLength,
+      ...reasonFields,
     };
   }
 
@@ -91,11 +130,12 @@ export function normalizeQuestionConfig(
       raw.combinations?.length
         ? raw.combinations
         : defaultRankingQuestionConfig().combinations,
+    ...normalizeCombinedReasonFields(raw),
   };
 }
 
 export function normalizeQuestion(question: Question): Question {
-  const type = (question.type as QuestionType) || "score";
+  const type = normalizeQuestionType(question.type as string);
   return {
     ...question,
     title: question.title || defaultQuestionTitle(type),
@@ -163,4 +203,8 @@ export function migrateLegacyQuestions(
 
 export function configForType(type: QuestionType): QuestionConfig {
   return configForQuestionType(type);
+}
+
+export function supportsCombinedReason(type: QuestionType): boolean {
+  return type !== "text";
 }

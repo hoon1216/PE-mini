@@ -26,6 +26,26 @@ export function parseChoiceAnswer(
 
   if (!value) return [];
 
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      "selected" in parsed &&
+      Array.isArray((parsed as { selected?: unknown }).selected)
+    ) {
+      return (parsed as { selected: unknown[] }).selected.filter(
+        (item): item is string => typeof item === "string"
+      );
+    }
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === "string");
+    }
+  } catch {
+    // Legacy single-value string stored before multi-select support.
+  }
+
   if (isSingleChoice(config)) {
     return value ? [value] : [];
   }
