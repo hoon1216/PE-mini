@@ -5,14 +5,18 @@ import { Button } from "@/components/ui/button";
 import type {
   AgeGroup,
   DemographicFieldConfig,
+  Gender,
   ScoreCompareReasonEntry,
   ScoreReasonCategoryStats,
 } from "@/lib/types";
 import { AGE_GROUP_LABELS, GENDER_LABELS } from "@/lib/types";
 
-type FilterValue = "all" | string;
+const thClass =
+  "border border-slate-300 bg-slate-100 px-2 py-2 text-center text-xs font-semibold";
+const tdClass = "border border-slate-300 px-2 py-2 text-center text-xs";
 
 interface ScoreCompareReasonViewerProps {
+  title: string;
   categories: ScoreReasonCategoryStats[];
   demographicFields: DemographicFieldConfig[];
   ageGroups: AgeGroup[];
@@ -20,94 +24,80 @@ interface ScoreCompareReasonViewerProps {
 
 function matchesFilters(
   entry: ScoreCompareReasonEntry,
-  gender: FilterValue,
-  ageGroup: FilterValue,
-  customFilters: Record<string, FilterValue>
+  gender: Gender | null,
+  ageGroup: AgeGroup | null,
+  customFilters: Record<string, string | null>
 ): boolean {
-  if (gender !== "all" && entry.gender !== gender) return false;
-  if (ageGroup !== "all" && entry.ageGroup !== ageGroup) return false;
+  if (gender && entry.gender !== gender) return false;
+  if (ageGroup && entry.ageGroup !== ageGroup) return false;
 
-  for (const field of Object.keys(customFilters)) {
-    const selected = customFilters[field];
-    if (selected === "all") continue;
-    if (entry.demographicValues[field] !== selected) return false;
+  for (const [fieldId, selected] of Object.entries(customFilters)) {
+    if (!selected) continue;
+    if (entry.demographicValues[fieldId] !== selected) return false;
   }
 
   return true;
 }
 
-function FilterChip({
+function SelectableCell({
   selected,
+  count,
   onClick,
-  children,
 }: {
   selected: boolean;
+  count: number;
   onClick: () => void;
-  children: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`shrink-0 rounded-lg border px-2.5 py-1 text-sm transition ${
-        selected
-          ? "border-primary bg-primary text-white"
-          : "border-border bg-card hover:border-primary/40"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function InlineFilterGroup({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: FilterValue;
-  options: { value: FilterValue; label: string }[];
-  onChange: (value: FilterValue) => void;
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-2">
-      <span className="whitespace-nowrap text-sm font-medium text-muted">
-        {label}
-      </span>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((option) => (
-          <FilterChip
-            key={`${label}-${option.value}`}
-            selected={value === option.value}
-            onClick={() => onChange(option.value)}
-          >
-            {option.label}
-          </FilterChip>
-        ))}
-      </div>
-    </div>
+    <td className={tdClass}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={`min-w-[2.5rem] rounded px-2 py-1 transition ${
+          selected
+            ? "bg-primary font-semibold text-white"
+            : count > 0
+              ? "hover:bg-primary/10"
+              : "text-muted"
+        }`}
+      >
+        {count > 0 ? count : "-"}
+      </button>
+    </td>
   );
 }
 
 export function ScoreCompareReasonViewer({
+  title,
   categories,
   demographicFields,
   ageGroups,
 }: ScoreCompareReasonViewerProps) {
-  const [gender, setGender] = useState<FilterValue>("all");
-  const [ageGroup, setAgeGroup] = useState<FilterValue>("all");
+  const [gender, setGender] = useState<Gender | null>(null);
+  const [ageGroup, setAgeGroup] = useState<AgeGroup | null>(null);
   const [customFilters, setCustomFilters] = useState<
-    Record<string, FilterValue>
-  >(() =>
-    Object.fromEntries(demographicFields.map((field) => [field.id, "all"]))
-  );
+    Record<string, string | null>
+  >(() => Object.fromEntries(demographicFields.map((field) => [field.id, null])));
   const [showAnswers, setShowAnswers] = useState(false);
 
-  const hasReasons = categories.some((category) =>
-    category.blocks.some((block) => block.entries.length > 0)
+  const allEntries = useMemo(
+    () =>
+      categories.flatMap((category) =>
+        category.blocks.flatMap((block) => block.entries)
+      ),
+    [categories]
   );
+
+  const hasReasons = allEntries.length > 0;
+
+  const countFor = (
+    partialGender: Gender | null,
+    partialAge: AgeGroup | null,
+    partialCustom: Record<string, string | null>
+  ) =>
+    allEntries.filter((entry) =>
+      matchesFilters(entry, partialGender, partialAge, partialCustom)
+    ).length;
 
   const filteredBlocks = useMemo(() => {
     if (!showAnswers) return [];
@@ -127,62 +117,127 @@ export function ScoreCompareReasonViewer({
     );
   }, [categories, gender, ageGroup, customFilters, showAnswers]);
 
+  const customColCount = demographicFields.reduce(
+    (sum, field) => sum + field.options.length,
+    0
+  );
+  const totalColSpan = 2 + ageGroups.length + customColCount;
+
+  function toggleGender(value: Gender) {
+    setGender((current) => (current === value ? null : value));
+    setShowAnswers(true);
+  }
+
+  function toggleAgeGroup(value: AgeGroup) {
+    setAgeGroup((current) => (current === value ? null : value));
+    setShowAnswers(true);
+  }
+
+  function toggleCustom(fieldId: string, option: string) {
+    setCustomFilters((prev) => ({
+      ...prev,
+      [fieldId]: prev[fieldId] === option ? null : option,
+    }));
+    setShowAnswers(true);
+  }
+
   if (!hasReasons) {
     return <p className="text-sm text-muted">제출된 이유가 없습니다.</p>;
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <InlineFilterGroup
-          label="성별"
-          value={gender}
-          onChange={setGender}
-          options={[
-            { value: "all", label: "전체" },
-            { value: "male", label: GENDER_LABELS.male },
-            { value: "female", label: GENDER_LABELS.female },
-          ]}
-        />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
+          <thead>
+            <tr>
+              <th colSpan={totalColSpan} className={thClass}>
+                {title}
+              </th>
+            </tr>
+            <tr>
+              <th colSpan={2} className={thClass}>
+                성별
+              </th>
+              {ageGroups.length > 0 && (
+                <th colSpan={ageGroups.length} className={thClass}>
+                  연령대
+                </th>
+              )}
+              {demographicFields.map((field) => (
+                <th
+                  key={field.id}
+                  colSpan={field.options.length}
+                  className={thClass}
+                >
+                  {field.label}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              <th className={thClass}>{GENDER_LABELS.male}</th>
+              <th className={thClass}>{GENDER_LABELS.female}</th>
+              {ageGroups.map((age) => (
+                <th key={age} className={thClass}>
+                  {AGE_GROUP_LABELS[age]}
+                </th>
+              ))}
+              {demographicFields.flatMap((field) =>
+                field.options.map((option) => (
+                  <th key={`${field.id}-${option}`} className={thClass}>
+                    {option}
+                  </th>
+                ))
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {(["male", "female"] as Gender[]).map((value) => (
+                <SelectableCell
+                  key={value}
+                  selected={gender === value}
+                  count={countFor(value, ageGroup, customFilters)}
+                  onClick={() => toggleGender(value)}
+                />
+              ))}
+              {ageGroups.map((age) => (
+                <SelectableCell
+                  key={age}
+                  selected={ageGroup === age}
+                  count={countFor(gender, age, customFilters)}
+                  onClick={() => toggleAgeGroup(age)}
+                />
+              ))}
+              {demographicFields.flatMap((field) =>
+                field.options.map((option) => {
+                  const partialCustom = {
+                    ...customFilters,
+                    [field.id]: option as string | null,
+                  };
+                  return (
+                    <SelectableCell
+                      key={`${field.id}-${option}`}
+                      selected={customFilters[field.id] === option}
+                      count={countFor(gender, ageGroup, partialCustom)}
+                      onClick={() => toggleCustom(field.id, option)}
+                    />
+                  );
+                })
+              )}
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-        <InlineFilterGroup
-          label="연령대"
-          value={ageGroup}
-          onChange={setAgeGroup}
-          options={[
-            { value: "all", label: "전체" },
-            ...ageGroups.map((age) => ({
-              value: age,
-              label: AGE_GROUP_LABELS[age],
-            })),
-          ]}
-        />
-
-        {demographicFields.map((field, index) => (
-          <InlineFilterGroup
-            key={field.id}
-            label={`구분자${index + 1}`}
-            value={customFilters[field.id] ?? "all"}
-            onChange={(value) =>
-              setCustomFilters((prev) => ({ ...prev, [field.id]: value }))
-            }
-            options={[
-              { value: "all", label: "전체" },
-              ...field.options.map((option) => ({
-                value: option,
-                label: option,
-              })),
-            ]}
-          />
-        ))}
-
-        <Button
-          type="button"
-          className="shrink-0"
-          onClick={() => setShowAnswers(true)}
-        >
+      <div className="flex items-center gap-3">
+        <Button type="button" onClick={() => setShowAnswers(true)}>
           답안 표시
         </Button>
+        <p className="text-xs text-muted">
+          셀을 선택하면 해당 조건으로 필터됩니다. 항목별 선택이 없으면 해당
+          항목 전체가 포함됩니다.
+        </p>
       </div>
 
       {showAnswers && (

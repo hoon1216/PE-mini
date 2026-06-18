@@ -898,16 +898,13 @@ export function ScoreCompareSectionTable({
       {hasReasonCategories && (
         <div className="space-y-4">
           {section.reasonCategories.map((category) => (
-            <div key={category.category} className="space-y-4">
-              <p className="text-sm font-medium">
-                {category.category} — 고득점 디자인 안 선호 이유
-              </p>
-              <ScoreCompareReasonViewer
-                categories={[category]}
-                demographicFields={section.demographicFields}
-                ageGroups={section.ageGroups}
-              />
-            </div>
+            <ScoreCompareReasonViewer
+              key={category.category}
+              title={`${category.category} — 고득점 디자인 안 선호 이유`}
+              categories={[category]}
+              demographicFields={section.demographicFields}
+              ageGroups={section.ageGroups}
+            />
           ))}
         </div>
       )}
