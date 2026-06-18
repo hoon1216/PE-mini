@@ -10,6 +10,7 @@ import {
   buildSubmitPayload,
   clearDraft,
   getOrCreateDraft,
+  isParticipantProfileComplete,
   isSectionCompleted,
   saveDraft,
   sectionHasQuestions,
@@ -28,6 +29,9 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
   const [participantName, setParticipantName] = useState("");
   const [gender, setGender] = useState<Gender | "">("");
   const [ageGroup, setAgeGroup] = useState<AgeGroup | "">("");
+  const [demographicValues, setDemographicValues] = useState<
+    Record<string, string>
+  >({});
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [draftScores, setDraftScores] = useState<Record<string, string>>({});
   const [draftRankings, setDraftRankings] = useState<
@@ -45,6 +49,7 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
     setParticipantName(draft.participantName ?? "");
     setGender(draft.gender);
     setAgeGroup(draft.ageGroup);
+    setDemographicValues({ ...draft.demographicValues });
     setCompletedIds([...draft.completedSectionIds]);
     setDraftScores({ ...draft.scores });
     setDraftRankings({ ...draft.rankings });
@@ -72,13 +77,15 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
   function persistProfile(
     nextName: string,
     nextGender: Gender | "",
-    nextAge: AgeGroup | ""
+    nextAge: AgeGroup | "",
+    nextDemographicValues: Record<string, string> = demographicValues
   ) {
     if (!survey) return;
     const draft = getOrCreateDraft(survey.id);
     draft.participantName = nextName;
     draft.gender = nextGender;
     draft.ageGroup = nextAge;
+    draft.demographicValues = nextDemographicValues;
     saveDraft(draft);
   }
 
@@ -97,6 +104,12 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
     persistProfile(participantName, gender, value);
   }
 
+  function handleDemographicChange(fieldId: string, value: string) {
+    const nextValues = { ...demographicValues, [fieldId]: value };
+    setDemographicValues(nextValues);
+    persistProfile(participantName, gender, ageGroup, nextValues);
+  }
+
   const evaluableSections =
     survey?.sections.filter(sectionHasQuestions) ?? [];
 
@@ -106,6 +119,7 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
         participantName,
         gender,
         ageGroup,
+        demographicValues,
         completedSectionIds: completedIds,
         scores: draftScores,
         rankings: draftRankings,
@@ -135,6 +149,7 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
     draft.participantName = participantName.trim();
     draft.gender = gender;
     draft.ageGroup = ageGroup;
+    draft.demographicValues = demographicValues;
     draft.completedSectionIds = completedIds;
     draft.scores = draftScores;
     draft.rankings = draftRankings;
@@ -186,7 +201,9 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
   }
 
   const profileReady =
-    !!participantName.trim() && !!gender && !!ageGroup;
+    !!survey &&
+    !!currentDraft &&
+    isParticipantProfileComplete(survey, currentDraft);
 
   return (
     <div className="space-y-6">
@@ -256,6 +273,31 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
               </select>
             </div>
           </div>
+          {survey.demographicFields.map((field) => (
+            <div key={field.id}>
+              <label
+                htmlFor={`demographic-${field.id}`}
+                className="mb-1 block text-sm font-medium"
+              >
+                {field.label}
+              </label>
+              <select
+                id={`demographic-${field.id}`}
+                value={demographicValues[field.id] ?? ""}
+                onChange={(e) =>
+                  handleDemographicChange(field.id, e.target.value)
+                }
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              >
+                <option value="">선택</option>
+                {field.options.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -269,7 +311,9 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
 
         {!profileReady && (
           <p className="mt-3 text-sm text-amber-700">
-            섹션 평가를 시작하려면 이름, 성별, 연령대를 먼저 입력해주세요.
+            섹션 평가를 시작하려면 이름, 성별, 연령대
+            {survey.demographicFields.length > 0 ? " 및 구분 항목" : ""}을 먼저
+            입력해주세요.
           </p>
         )}
 

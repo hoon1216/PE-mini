@@ -2,6 +2,7 @@ import {
   parseChoiceAnswer,
   validateChoiceAnswer,
 } from "./choice-utils";
+import { validateDemographicValues } from "./demographic-field-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import type {
   AgeGroup,
@@ -110,6 +111,14 @@ export function validateSubmitResponse(
 
   if (!input.ageGroup || !isAgeGroup(input.ageGroup)) {
     throw new SubmitValidationError("유효한 연령대를 선택해주세요.");
+  }
+
+  const demographicError = validateDemographicValues(
+    survey.demographicFields,
+    input.demographicValues
+  );
+  if (demographicError) {
+    throw new SubmitValidationError(demographicError);
   }
 
   const allQuestions = survey.sections.flatMap((section) => section.questions);

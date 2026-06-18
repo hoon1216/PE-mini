@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { fetchJson } from "@/lib/fetch-json";
-import type { Response } from "@/lib/types";
+import type { DemographicFieldConfig, Response } from "@/lib/types";
 import { AGE_GROUP_LABELS, GENDER_LABELS } from "@/lib/types";
 
 interface ParticipantResponseManagerProps {
   surveyId: string;
+  demographicFields?: DemographicFieldConfig[];
 }
 
 function formatSubmittedAt(value: string): string {
@@ -22,6 +23,7 @@ function formatSubmittedAt(value: string): string {
 
 export function ParticipantResponseManager({
   surveyId,
+  demographicFields = [],
 }: ParticipantResponseManagerProps) {
   const [responses, setResponses] = useState<Response[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,6 +155,11 @@ export function ParticipantResponseManager({
                 <th className="px-3 py-2 font-medium">이름</th>
                 <th className="px-3 py-2 font-medium">성별</th>
                 <th className="px-3 py-2 font-medium">연령대</th>
+                {demographicFields.map((field) => (
+                  <th key={field.id} className="px-3 py-2 font-medium">
+                    {field.label}
+                  </th>
+                ))}
                 <th className="px-3 py-2 font-medium">제출일시</th>
                 <th className="px-3 py-2 font-medium text-right">관리</th>
               </tr>
@@ -171,6 +178,11 @@ export function ParticipantResponseManager({
                   <td className="px-3 py-3">
                     {response.ageGroup ? AGE_GROUP_LABELS[response.ageGroup] : "—"}
                   </td>
+                  {demographicFields.map((field) => (
+                    <td key={field.id} className="px-3 py-3">
+                      {response.demographicValues[field.id] ?? "—"}
+                    </td>
+                  ))}
                   <td className="px-3 py-3 text-muted">
                     {formatSubmittedAt(response.submittedAt)}
                   </td>

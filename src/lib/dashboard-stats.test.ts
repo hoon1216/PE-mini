@@ -10,6 +10,7 @@ function createSurvey(): SurveyDetail {
     description: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    demographicFields: [],
     sections: [
       {
         id: "section-1",
@@ -69,6 +70,7 @@ function createResponses(): Response[] {
       participantName: "홍길동",
       gender: "male",
       ageGroup: "20s",
+      demographicValues: {},
     },
     {
       id: "resp-2",
@@ -77,6 +79,7 @@ function createResponses(): Response[] {
       participantName: "김영희",
       gender: "female",
       ageGroup: "30s",
+      demographicValues: {},
     },
   ];
 }
@@ -245,6 +248,7 @@ describe("computeDashboardStats", () => {
         participantName: "A",
         gender: "male" as const,
         ageGroup: "20s" as const,
+        demographicValues: {},
       },
       {
         id: "resp-2",
@@ -253,6 +257,7 @@ describe("computeDashboardStats", () => {
         participantName: "B",
         gender: "female" as const,
         ageGroup: "30s" as const,
+        demographicValues: {},
       },
     ];
 

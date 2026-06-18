@@ -60,6 +60,16 @@ function writeDemographics(writer: SheetWriter, stats: DashboardStats) {
       ...ageGroups.map((age) => demographics.byAgeGroup[age] ?? 0),
     ],
   ]);
+
+  for (const field of demographics.customFields) {
+    writer.addBlank();
+    writer.addRows([
+      [field.label, ...field.options.slice(1).map(() => "")],
+      field.options,
+      field.options.map((option) => field.byOption[option] ?? 0),
+    ]);
+  }
+
   writer.addBlank(2);
 }
 

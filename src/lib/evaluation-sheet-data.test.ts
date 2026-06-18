@@ -14,6 +14,7 @@ function createSurvey(): SurveyDetail {
     description: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    demographicFields: [],
     sections: [
       {
         id: "section-black",
@@ -106,6 +107,7 @@ describe("evaluation-sheet-data", () => {
         participantName: "홍길동",
         gender: "male",
         ageGroup: "20s",
+        demographicValues: {},
       },
       [
         { id: "a1", responseId: "resp-1", questionId: "score-1", value: "5" },
@@ -172,6 +174,7 @@ describe("evaluation-sheet-data", () => {
         participantName: "김철수",
         gender: "female",
         ageGroup: "30s",
+        demographicValues: {},
       },
       [
         {

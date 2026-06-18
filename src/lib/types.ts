@@ -2,6 +2,12 @@ export type QuestionType = "score" | "ranking" | "text" | "choice";
 export type Gender = "male" | "female";
 export type AgeGroup = "10s" | "20s" | "30s" | "40s" | "50s" | "60s";
 
+export interface DemographicFieldConfig {
+  id: string;
+  label: string;
+  options: string[];
+}
+
 export interface ScoreQuestionConfig {
   category: string;
   combination: string;
@@ -81,6 +87,7 @@ export interface Question {
 }
 
 export interface SurveyDetail extends Survey {
+  demographicFields: DemographicFieldConfig[];
   sections: (Section & { questions: Question[] })[];
 }
 
@@ -91,6 +98,7 @@ export interface Response {
   participantName: string | null;
   gender: Gender | null;
   ageGroup: AgeGroup | null;
+  demographicValues: Record<string, string>;
 }
 
 export interface Answer {
@@ -100,12 +108,20 @@ export interface Answer {
   value: string;
 }
 
+export interface DemographicFieldStats {
+  fieldId: string;
+  label: string;
+  options: string[];
+  byOption: Record<string, number>;
+}
+
 export interface DemographicStats {
   total: number;
   male: number;
   female: number;
   ageGroups: AgeGroup[];
   byAgeGroup: Partial<Record<AgeGroup, number>>;
+  customFields: DemographicFieldStats[];
 }
 
 export interface DemographicCell {
@@ -227,6 +243,7 @@ export interface CreateSurveyInput {
 export interface UpdateSurveyContentInput {
   title?: string;
   description?: string;
+  demographicFields?: DemographicFieldConfig[];
   sections: {
     id?: string;
     title: string;
@@ -247,6 +264,7 @@ export interface SubmitResponseInput {
   participantName: string;
   gender: Gender;
   ageGroup: AgeGroup;
+  demographicValues?: Record<string, string>;
   answers: { questionId: string; value: string }[];
 }
 

@@ -9,6 +9,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { fetchJson } from "@/lib/fetch-json";
 import {
   getOrCreateDraft,
+  isParticipantProfileComplete,
   saveDraft,
   sectionHasQuestions,
   validateSectionAnswers,
@@ -142,11 +143,13 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
   }
 
   const draft = getOrCreateDraft(survey.id);
-  if (!draft.participantName?.trim() || !draft.gender || !draft.ageGroup) {
+  if (!isParticipantProfileComplete(survey, draft)) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6 text-center">
         <p className="text-sm text-muted">
-          이름, 성별, 연령대를 입력한 후 평가를 시작해주세요.
+          이름, 성별, 연령대
+          {survey.demographicFields.length > 0 ? " 및 구분 항목" : ""}을 입력한
+          후 평가를 시작해주세요.
         </p>
         <ButtonLink href={`/s/${slug}`} className="mt-4">
           평가 홈으로

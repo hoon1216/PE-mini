@@ -3,6 +3,7 @@ import type {
   Answer,
   DashboardStats,
   DemographicCell,
+  DemographicFieldConfig,
   DemographicStats,
   Gender,
   Question,
@@ -65,7 +66,10 @@ function computeRanks(
   return ranks;
 }
 
-function buildDemographics(responses: Response[]): DemographicStats {
+function buildDemographics(
+  responses: Response[],
+  fields: DemographicFieldConfig[]
+): DemographicStats {
   const byAgeGroup: Partial<Record<AgeGroup, number>> = {};
   let male = 0;
   let female = 0;
@@ -78,12 +82,34 @@ function buildDemographics(responses: Response[]): DemographicStats {
     }
   }
 
+  const customFields = fields.map((field) => {
+    const byOption: Record<string, number> = {};
+    for (const option of field.options) {
+      byOption[option] = 0;
+    }
+
+    for (const response of responses) {
+      const selected = response.demographicValues[field.id];
+      if (selected && field.options.includes(selected)) {
+        byOption[selected] = (byOption[selected] ?? 0) + 1;
+      }
+    }
+
+    return {
+      fieldId: field.id,
+      label: field.label,
+      options: field.options,
+      byOption,
+    };
+  });
+
   return {
     total: responses.length,
     male,
     female,
     ageGroups: getPresentAgeGroups(responses),
     byAgeGroup,
+    customFields,
   };
 }
 
@@ -535,7 +561,7 @@ export function computeDashboardStats(
   responses: Response[],
   answers: Answer[]
 ): DashboardStats {
-  const demographics = buildDemographics(responses);
+  const demographics = buildDemographics(responses, survey.demographicFields);
   const ageGroups = demographics.ageGroups;
 
   const sectionGroups = survey.sections.map((section) => {

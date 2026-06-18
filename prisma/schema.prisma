@@ -9,14 +9,15 @@ datasource db {
 }
 
 model Survey {
-  id          String     @id
-  title       String
-  slug        String     @unique
-  description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  sections    Section[]
-  responses   Response[]
+  id                String     @id
+  title             String
+  slug              String     @unique
+  description       String?
+  demographicFields Json?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  sections          Section[]
+  responses         Response[]
 }
 
 model Section {
@@ -46,14 +47,15 @@ model Question {
 }
 
 model Response {
-  id              String   @id
-  surveyId        String
-  submittedAt     DateTime @default(now())
-  participantName String?
-  gender          String?
-  ageGroup        String?
-  survey          Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
-  answers         Answer[]
+  id                String   @id
+  surveyId          String
+  submittedAt       DateTime @default(now())
+  participantName   String?
+  gender            String?
+  ageGroup          String?
+  demographicValues Json?
+  survey            Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  answers           Answer[]
 
   @@index([surveyId])
 }

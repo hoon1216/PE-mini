@@ -7,6 +7,11 @@ import {
   isTextQuestionRequired,
 } from "./text-grouping-utils";
 import {
+  isDemographicProfileComplete,
+  normalizeDemographicValues,
+  validateDemographicValues,
+} from "./demographic-field-utils";
+import {
   normalizeRankingAnswer,
   serializeRankingAnswer,
   validateRankingAnswer,
@@ -28,6 +33,7 @@ export interface EvaluationDraft {
   participantName: string;
   gender: Gender | "";
   ageGroup: AgeGroup | "";
+  demographicValues: Record<string, string>;
   completedSectionIds: string[];
   scores: Record<string, string>;
   rankings: Record<string, RankingAnswer>;
@@ -63,6 +69,7 @@ export function createEmptyDraft(surveyId: string): EvaluationDraft {
     participantName: "",
     gender: "",
     ageGroup: "",
+    demographicValues: {},
     completedSectionIds: [],
     scores: {},
     rankings: {},
@@ -82,6 +89,7 @@ export function loadDraft(surveyId: string): EvaluationDraft | null {
       ...parsed,
       texts: parsed.texts ?? {},
       choices: normalizeDraftChoices(parsed.choices),
+      demographicValues: normalizeDemographicValues(parsed.demographicValues),
     };
   } catch {
     return null;
@@ -199,6 +207,12 @@ export function validateDraftForSubmit(
     return "성별과 연령대를 선택해주세요.";
   }
 
+  const demographicError = validateDemographicValues(
+    survey.demographicFields,
+    draft.demographicValues
+  );
+  if (demographicError) return demographicError;
+
   const evaluable = survey.sections.filter(sectionHasQuestions);
   for (const section of evaluable) {
     const error = validateSectionAnswers(
@@ -281,6 +295,19 @@ export function buildSubmitPayload(
     participantName: draft.participantName.trim(),
     gender: draft.gender as Gender,
     ageGroup: draft.ageGroup as AgeGroup,
+    demographicValues: draft.demographicValues,
     answers,
   };
+}
+
+export function isParticipantProfileComplete(
+  survey: SurveyDetail,
+  draft: EvaluationDraft
+): boolean {
+  return (
+    !!draft.participantName?.trim() &&
+    !!draft.gender &&
+    !!draft.ageGroup &&
+    isDemographicProfileComplete(survey.demographicFields, draft.demographicValues)
+  );
 }

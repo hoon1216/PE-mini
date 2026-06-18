@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { fetchJson } from "@/lib/fetch-json";
+import { createDefaultDemographicField } from "@/lib/demographic-field-utils";
 import { configForType } from "@/lib/question-utils";
 import {
   findPrecedingRankingQuestion,
   isRankGroupedTextSection,
 } from "@/lib/text-grouping-utils";
 import type {
+  DemographicFieldConfig,
   Question,
   QuestionConfig,
   QuestionType,
@@ -149,6 +151,9 @@ export function SurveyEditor({
   const [sections, setSections] = useState<EditorSection[]>(
     initialSurvey ? mapSurveyToEditorSections(initialSurvey) : []
   );
+  const [demographicFields, setDemographicFields] = useState<
+    DemographicFieldConfig[]
+  >(initialSurvey?.demographicFields ?? []);
   const [newQuestionTypes, setNewQuestionTypes] = useState<
     Record<number, QuestionType>
   >({});
@@ -164,6 +169,7 @@ export function SurveyEditor({
       .then((data) => {
         setTitle(data.title);
         setDescription(data.description ?? "");
+        setDemographicFields(data.demographicFields ?? []);
         setSections(mapSurveyToEditorSections(data));
       })
       .catch((err) =>
@@ -552,6 +558,67 @@ export function SurveyEditor({
     setSections((prev) => [...prev, createEmptySection(prev.length)]);
   }
 
+  function addDemographicField() {
+    setDemographicFields((prev) => [...prev, createDefaultDemographicField()]);
+  }
+
+  function updateDemographicField(
+    index: number,
+    patch: Partial<DemographicFieldConfig>
+  ) {
+    setDemographicFields((prev) =>
+      prev.map((field, fieldIndex) =>
+        fieldIndex === index ? { ...field, ...patch } : field
+      )
+    );
+  }
+
+  function updateDemographicOption(
+    fieldIndex: number,
+    optionIndex: number,
+    value: string
+  ) {
+    setDemographicFields((prev) =>
+      prev.map((field, index) => {
+        if (index !== fieldIndex) return field;
+        return {
+          ...field,
+          options: field.options.map((option, currentIndex) =>
+            currentIndex === optionIndex ? value : option
+          ),
+        };
+      })
+    );
+  }
+
+  function addDemographicOption(fieldIndex: number) {
+    setDemographicFields((prev) =>
+      prev.map((field, index) => {
+        if (index !== fieldIndex) return field;
+        return {
+          ...field,
+          options: [...field.options, "새 선택지"],
+        };
+      })
+    );
+  }
+
+  function removeDemographicOption(fieldIndex: number, optionIndex: number) {
+    setDemographicFields((prev) =>
+      prev.map((field, index) => {
+        if (index !== fieldIndex || field.options.length <= 2) return field;
+        return {
+          ...field,
+          options: field.options.filter((_, currentIndex) => currentIndex !== optionIndex),
+        };
+      })
+    );
+  }
+
+  function removeDemographicField(index: number) {
+    setDemographicFields((prev) => prev.filter((_, fieldIndex) => fieldIndex !== index));
+  }
+
   function removeSection(index: number) {
     setSections((prev) =>
       prev
@@ -569,6 +636,7 @@ export function SurveyEditor({
       const payload = {
         title,
         description,
+        demographicFields,
         sections: sections.map((section, sectionIndex) => ({
           id: section.id || undefined,
           title: section.title,
@@ -591,6 +659,7 @@ export function SurveyEditor({
         body: JSON.stringify(payload),
       });
 
+      setDemographicFields(updated.demographicFields ?? []);
       setSections(
         updated.sections.map((section) => ({
           id: section.id,
@@ -642,6 +711,103 @@ export function SurveyEditor({
             />
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-semibold">조사 대상 정보</h2>
+        <p className="mt-2 text-sm text-muted">
+          이름, 성별, 연령대는 기본 항목입니다. 아래에서 구분 항목을 추가하면
+          참가자가 선택형으로 응답합니다.
+        </p>
+
+        {demographicFields.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">
+            등록된 구분 항목이 없습니다.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {demographicFields.map((field, fieldIndex) => (
+              <div
+                key={field.id}
+                className="rounded-xl border border-border bg-slate-50 p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <label className="mb-1 block text-sm font-medium">
+                      구분 항목명
+                    </label>
+                    <Input
+                      value={field.label}
+                      onChange={(e) =>
+                        updateDemographicField(fieldIndex, {
+                          label: e.target.value,
+                        })
+                      }
+                      placeholder="예: 가전보유 여부"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    className="mt-6"
+                    onClick={() => removeDemographicField(fieldIndex)}
+                  >
+                    항목 삭제
+                  </Button>
+                </div>
+
+                <p className="mt-4 text-sm font-medium">선택지</p>
+                <div className="mt-2 space-y-2">
+                  {field.options.map((option, optionIndex) => (
+                    <div
+                      key={`${field.id}-option-${optionIndex}`}
+                      className="flex gap-2"
+                    >
+                      <Input
+                        value={option}
+                        onChange={(e) =>
+                          updateDemographicOption(
+                            fieldIndex,
+                            optionIndex,
+                            e.target.value
+                          )
+                        }
+                        placeholder="선택지"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() =>
+                          removeDemographicOption(fieldIndex, optionIndex)
+                        }
+                        disabled={field.options.length <= 2}
+                      >
+                        삭제
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-2"
+                  onClick={() => addDemographicOption(fieldIndex)}
+                >
+                  선택지 추가
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Button
+          type="button"
+          variant="secondary"
+          className="mt-4"
+          onClick={addDemographicField}
+        >
+          구분 항목 추가
+        </Button>
       </div>
 
       {sections.map((section, sectionIndex) => (
@@ -1071,7 +1237,10 @@ export function SurveyEditor({
         </div>
       ))}
 
-      <ParticipantResponseManager surveyId={surveyId} />
+      <ParticipantResponseManager
+        surveyId={surveyId}
+        demographicFields={demographicFields}
+      />
 
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="secondary" onClick={addSection}>

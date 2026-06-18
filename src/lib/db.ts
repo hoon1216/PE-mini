@@ -3,6 +3,10 @@ import type { Prisma } from "@prisma/client";
 import { computeDashboardStats } from "./dashboard-stats";
 import { migrateLegacyQuestions, normalizeQuestion } from "./question-utils";
 import {
+  normalizeDemographicFields,
+  normalizeDemographicValues,
+} from "./demographic-field-utils";
+import {
   assertDatabaseConfigured,
   prisma,
   prismaTransaction,
@@ -115,6 +119,7 @@ function toQuestion(row: {
 function buildSurveyDetail(survey: SurveyWithRelations): SurveyDetail {
   return {
     ...toSurvey(survey),
+    demographicFields: normalizeDemographicFields(survey.demographicFields),
     sections: survey.sections.map((section) => ({
       id: section.id,
       surveyId: section.surveyId,
@@ -136,6 +141,7 @@ function normalizeResponse(response: {
   participantName: string | null;
   gender: string | null;
   ageGroup: string | null;
+  demographicValues?: unknown;
 }): Response {
   return {
     id: response.id,
@@ -144,6 +150,7 @@ function normalizeResponse(response: {
     participantName: response.participantName?.trim() || null,
     gender: (response.gender as Response["gender"]) ?? null,
     ageGroup: (response.ageGroup as Response["ageGroup"]) ?? null,
+    demographicValues: normalizeDemographicValues(response.demographicValues),
   };
 }
 
@@ -248,6 +255,13 @@ export async function updateSurveyContent(
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined
           ? { description: input.description ?? null }
+          : {}),
+        ...(input.demographicFields !== undefined
+          ? {
+              demographicFields: normalizeDemographicFields(
+                input.demographicFields
+              ) as unknown as Prisma.InputJsonValue,
+            }
           : {}),
       },
     });
@@ -407,6 +421,9 @@ export async function submitResponse(
         participantName: input.participantName.trim(),
         gender: input.gender,
         ageGroup: input.ageGroup,
+        demographicValues: normalizeDemographicValues(
+          input.demographicValues
+        ) as unknown as Prisma.InputJsonValue,
         answers: {
           create: input.answers.map((answer) => ({
             id: nanoid(12),

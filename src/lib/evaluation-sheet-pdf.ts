@@ -349,7 +349,20 @@ function renderSheetPage(doc: PdfDoc, sheet: EvaluationSheet) {
     { align: "left", fontSize: 9 }
   );
 
-  y += 22;
+  y += 16;
+  for (const line of sheet.demographicLines) {
+    drawText(
+      doc,
+      `${line.label}  ${line.value}`,
+      MARGIN,
+      y,
+      contentWidth,
+      { align: "left", fontSize: 9 }
+    );
+    y += 14;
+  }
+
+  y += 8;
 
   const columns = sheet.bodyColumns;
   const gap = 10;

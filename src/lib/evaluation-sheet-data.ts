@@ -39,6 +39,7 @@ export interface EvaluationSheet {
   participantName: string;
   genderLabel: string;
   ageGroupLabel: string;
+  demographicLines: { label: string; value: string }[];
   bodyColumns: BodyColumnData[];
   preferredGrill: { rank1: string; rank2: string; rank3: string };
   preferredReason: string;
@@ -274,6 +275,10 @@ export function buildEvaluationSheet(
     participantName: response.participantName ?? "",
     genderLabel: response.gender ? GENDER_LABELS[response.gender] : "-",
     ageGroupLabel: response.ageGroup ? AGE_GROUP_LABELS[response.ageGroup] : "-",
+    demographicLines: survey.demographicFields.map((field) => ({
+      label: field.label,
+      value: response.demographicValues[field.id] ?? "-",
+    })),
     bodyColumns,
     preferredGrill,
     preferredReason,
