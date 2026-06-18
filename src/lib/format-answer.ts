@@ -16,12 +16,19 @@ export function formatAnswerValue(question: Question, value: string): string {
   }
 
   if (question.type === "score-reason") {
-    const parsed = parseScoreReasonAnswer(value);
+    const config = question.config as ScoreReasonQuestionConfig;
+    const parsed = parseScoreReasonAnswer(value, config.combinations);
     if (!parsed) return value;
+    const scoreParts = config.combinations
+      .map((combination) => {
+        const score = parsed.scores[combination];
+        return typeof score === "number" ? `${combination}: ${score}점` : null;
+      })
+      .filter((part): part is string => part !== null);
     const reason = parsed.reason.trim();
     return reason
-      ? `${parsed.score}점 / ${reason}`
-      : `${parsed.score}점`;
+      ? `${scoreParts.join(" / ")} / ${reason}`
+      : scoreParts.join(" / ");
   }
 
   if (question.type === "ranking") {
@@ -48,7 +55,7 @@ export function questionDisplayLabel(question: Question): string {
   }
   if (question.type === "score-reason") {
     const config = question.config as ScoreReasonQuestionConfig;
-    return config.combination || question.title;
+    return config.combinations.join(", ") || question.title;
   }
   if (question.type === "ranking") {
     return question.title !== "순위 문항" ? question.title : "순위 선정";

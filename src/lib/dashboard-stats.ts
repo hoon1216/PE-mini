@@ -34,7 +34,7 @@ import {
   buildChoiceComparisonSectionStats,
 } from "./choice-comparison-stats";
 import { buildTextDemographicItems } from "./text-demographic-stats";
-import { scoreFromAnswerValue } from "./score-reason-utils";
+import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
 import { buildScoreReasonCategories } from "./score-reason-stats";
 import {
   findPrecedingRankingQuestion,
@@ -120,32 +120,59 @@ function buildDemographics(
 function scoreForItem(
   answers: Answer[],
   responseId: string,
-  itemId: string
+  itemId: string,
+  combinations: string[] = []
 ): number | null {
+  const parsedKey = parseScoreReasonItemKey(itemId);
+  if (parsedKey) {
+    return getScoreReasonCombinationScore(
+      answers,
+      responseId,
+      parsedKey.questionId,
+      parsedKey.combination,
+      combinations
+    );
+  }
+
   const answer = answers.find(
     (a) => a.responseId === responseId && a.questionId === itemId
   );
   if (!answer) return null;
-  return scoreFromAnswerValue(answer.value);
+  return scoreFromAnswerValue(answer.value, combinations);
 }
 
 function buildScoreCellsForResponses(
   itemId: string,
-  items: { id: string; category: string }[],
+  items: { id: string; category: string; combinations: string[] }[],
   filtered: Response[],
   answers: Answer[]
 ): DemographicCell {
-  const category = items.find((item) => item.id === itemId)?.category ?? "";
+  const currentItem = items.find((item) => item.id === itemId);
+  const category = currentItem?.category ?? "";
   const categoryItems = items.filter((item) => item.category === category);
 
   const scores = filtered
-    .map((response) => scoreForItem(answers, response.id, itemId))
+    .map((response) =>
+      scoreForItem(
+        answers,
+        response.id,
+        itemId,
+        currentItem?.combinations ?? []
+      )
+    )
     .filter((score): score is number => score !== null);
 
   const demoItems = categoryItems.map((entry) => ({
     id: entry.id,
     scores: filtered
-      .map((response) => scoreForItem(answers, response.id, entry.id))
+      .map((response) =>
+        scoreForItem(
+          answers,
+          response.id,
+          entry.id,
+          entry.combinations
+        )
+      )
       .filter((score): score is number => score !== null),
   }));
   const demoRanks = computeRanks(demoItems);
@@ -164,14 +191,29 @@ function buildScoreSectionStats(
   ageGroups: AgeGroup[],
   customField: DemographicFieldConfig | null
 ): ScoreSectionStats {
-  const items = scoreQuestions.map((question) => {
+  const scoreItems = scoreQuestions.flatMap((question) => {
+    if (question.type === "score-reason") {
+      return flattenScoreReasonQuestions([question]);
+    }
+
     const config = question.config as ScoreQuestionConfig;
-    return {
-      id: question.id,
-      category: config.category,
-      combination: config.combination,
-    };
+    return [
+      {
+        id: question.id,
+        questionId: question.id,
+        category: config.category,
+        combination: config.combination,
+        combinations: [] as string[],
+      },
+    ];
   });
+
+  const items = scoreItems.map((item) => ({
+    id: item.id,
+    category: item.category,
+    combination: item.combination,
+    combinations: item.combinations,
+  }));
 
   const overallRanks = new Map<string, number | null>();
   for (const category of [...new Set(items.map((item) => item.category))]) {
@@ -179,7 +221,9 @@ function buildScoreSectionStats(
     const categoryScores = categoryItems.map((item) => ({
       id: item.id,
       scores: responses
-        .map((response) => scoreForItem(answers, response.id, item.id))
+        .map((response) =>
+          scoreForItem(answers, response.id, item.id, item.combinations)
+        )
         .filter((score): score is number => score !== null),
     }));
     const categoryRanks = computeRanks(categoryScores);
@@ -225,7 +269,14 @@ function buildScoreSectionStats(
       combination: item.combination,
       averageScore: average(
         responses
-          .map((response) => scoreForItem(answers, response.id, item.id))
+          .map((response) =>
+            scoreForItem(
+              answers,
+              response.id,
+              item.id,
+              item.combinations
+            )
+          )
           .filter((score): score is number => score !== null)
       ),
       averageRank: overallRanks.get(item.id) ?? null,

@@ -5,9 +5,8 @@ import {
 import { validateDemographicValues } from "./demographic-field-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import {
-  groupScoreReasonQuestionsByCategory,
   parseScoreReasonAnswer,
-  validateScoreReasonCategory,
+  validateScoreReasonQuestion,
 } from "./score-reason-utils";
 import type {
   AgeGroup,
@@ -77,12 +76,19 @@ function validateAnswerForQuestion(
   }
 
   if (question.type === "score-reason") {
-    const parsed = parseScoreReasonAnswer(value);
-    if (!parsed || !isValidScoreValue(String(parsed.score))) {
-      return `점수는 ${SCORE_MIN}~${SCORE_MAX} 사이여야 합니다.`;
+    const config = question.config as ScoreReasonQuestionConfig;
+    const parsed = parseScoreReasonAnswer(value, config.combinations);
+    if (!parsed) {
+      return "점수 및 이유 답변 형식이 올바르지 않습니다.";
     }
 
-    const config = question.config as ScoreReasonQuestionConfig;
+    for (const combination of config.combinations) {
+      const score = parsed.scores[combination];
+      if (typeof score !== "number" || !isValidScoreValue(String(score))) {
+        return `점수는 ${SCORE_MIN}~${SCORE_MAX} 사이여야 합니다.`;
+      }
+    }
+
     const maxLength = config.maxLength ?? 500;
     if (parsed.reason.trim().length > maxLength) {
       return `이유는 ${maxLength}자 이하여야 합니다.`;
@@ -183,30 +189,28 @@ export function validateSubmitResponse(
     }
   }
 
-  for (const section of survey.sections) {
-    const grouped = groupScoreReasonQuestionsByCategory(section.questions);
-    for (const [, categoryQuestions] of grouped) {
-      const scoreReasons: Record<string, { score: string; reason: string }> =
-        {};
+  for (const question of allQuestions) {
+    if (question.type !== "score-reason") continue;
 
-      for (const question of categoryQuestions) {
-        const value = answerMap.get(question.id) ?? "";
-        const parsed = parseScoreReasonAnswer(value);
-        if (parsed) {
-          scoreReasons[question.id] = {
-            score: String(parsed.score),
-            reason: parsed.reason,
-          };
+    const value = answerMap.get(question.id);
+    if (!value) continue;
+
+    const config = question.config as ScoreReasonQuestionConfig;
+    const parsed = parseScoreReasonAnswer(value, config.combinations);
+    const entry = parsed
+      ? {
+          scores: Object.fromEntries(
+            Object.entries(parsed.scores).map(([combination, score]) => [
+              combination,
+              String(score),
+            ])
+          ),
+          reason: parsed.reason,
         }
-      }
-
-      const categoryError = validateScoreReasonCategory(
-        categoryQuestions,
-        scoreReasons
-      );
-      if (categoryError) {
-        throw new SubmitValidationError(categoryError);
-      }
+      : undefined;
+    const questionError = validateScoreReasonQuestion(question, entry);
+    if (questionError) {
+      throw new SubmitValidationError(questionError);
     }
   }
 }

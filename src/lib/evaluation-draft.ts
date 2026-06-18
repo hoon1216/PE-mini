@@ -18,9 +18,8 @@ import {
   type RankingAnswer,
 } from "./ranking-utils";
 import {
-  groupScoreReasonQuestionsByCategory,
   serializeScoreReasonAnswer,
-  validateScoreReasonCategory,
+  validateScoreReasonQuestion,
 } from "./score-reason-utils";
 import type {
   AgeGroup,
@@ -34,7 +33,7 @@ import type {
 } from "./types";
 
 export interface ScoreReasonDraftEntry {
-  score: string;
+  scores: Record<string, string>;
   reason: string;
 }
 
@@ -145,25 +144,21 @@ export function validateSectionAnswers(
   choices: Record<string, string[]>
 ): string | null {
   const rank1 = getRank1ForSection(section, rankings);
-  const scoreReasonByCategory = groupScoreReasonQuestionsByCategory(
-    section.questions
-  );
-
-  for (const [, categoryQuestions] of scoreReasonByCategory) {
-    const categoryError = validateScoreReasonCategory(
-      categoryQuestions,
-      scoreReasons
-    );
-    if (categoryError) return categoryError;
-  }
 
   for (const question of section.questions) {
+    if (question.type === "score-reason") {
+      const categoryError = validateScoreReasonQuestion(
+        question,
+        scoreReasons[question.id]
+      );
+      if (categoryError) return categoryError;
+      continue;
+    }
+
     if (question.type === "score") {
       if (!scores[question.id]) {
         return "모든 항목의 점수를 선택해주세요.";
       }
-    } else if (question.type === "score-reason") {
-      continue;
     } else if (question.type === "ranking") {
       const config = question.config as RankingQuestionConfig;
       const rankingError = validateRankingAnswer(
@@ -284,12 +279,16 @@ export function buildSubmitPayload(
         });
       } else if (question.type === "score-reason") {
         const entry = draft.scoreReasons[question.id];
-        if (!entry?.score) {
-          throw new Error("모든 항목의 점수를 선택해주세요.");
+        const validationError = validateScoreReasonQuestion(question, entry);
+        if (validationError) {
+          throw new Error(validationError);
         }
         answers.push({
           questionId: question.id,
-          value: serializeScoreReasonAnswer(entry.score, entry.reason ?? ""),
+          value: serializeScoreReasonAnswer(
+            entry?.scores ?? {},
+            entry?.reason ?? ""
+          ),
         });
       } else if (question.type === "ranking") {
         const config = question.config as RankingQuestionConfig;

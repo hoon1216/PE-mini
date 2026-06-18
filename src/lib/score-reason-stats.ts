@@ -3,9 +3,8 @@ import {
   segmentMatchesResponse,
 } from "./choice-comparison-stats";
 import {
-  getReasonForWinningCombination,
-  getWinningCombinationForResponse,
-  groupScoreReasonQuestionsByCategory,
+  getReasonForQuestionResponse,
+  getWinningCombinationForQuestionResponse,
 } from "./score-reason-utils";
 import type {
   Answer,
@@ -14,46 +13,34 @@ import type {
   Question,
   Response,
   ScoreReasonCategoryStats,
+  ScoreReasonQuestionConfig,
   Section,
 } from "./types";
 
-function buildReasonBlocksForCategory(
-  categoryQuestions: Question[],
+function buildReasonBlocksForQuestion(
+  question: Question,
   responses: Response[],
   answers: Answer[],
   segments: ComparisonSegment[]
 ): ScoreReasonCategoryStats["blocks"] {
-  const combinations = [
-    ...new Set(
-      categoryQuestions.map(
-        (question) =>
-          (question.config as { combination: string }).combination
-      )
-    ),
-  ];
-
+  const config = question.config as ScoreReasonQuestionConfig;
   const blocks: ScoreReasonCategoryStats["blocks"] = [];
 
-  for (const winningCombination of combinations) {
+  for (const winningCombination of config.combinations) {
     const bySegment: Record<string, string[]> = {};
     for (const segment of segments) {
       bySegment[segment.key] = [];
     }
 
     for (const response of responses) {
-      const winner = getWinningCombinationForResponse(
-        categoryQuestions,
+      const winner = getWinningCombinationForQuestionResponse(
+        question,
         response.id,
         answers
       );
       if (winner !== winningCombination) continue;
 
-      const reason = getReasonForWinningCombination(
-        categoryQuestions,
-        response.id,
-        winningCombination,
-        answers
-      );
+      const reason = getReasonForQuestionResponse(question, response.id, answers);
       if (!reason) continue;
 
       for (const segment of segments) {
@@ -85,15 +72,17 @@ export function buildScoreReasonCategories(
   demographicFields: DemographicFieldConfig[]
 ): ScoreReasonCategoryStats[] {
   const segments = buildComparisonSegments(demographicFields, responses);
-  const grouped = groupScoreReasonQuestionsByCategory(scoreReasonQuestions);
 
-  return [...grouped.entries()].map(([category, questions]) => ({
-    category,
-    blocks: buildReasonBlocksForCategory(
-      questions,
-      responses,
-      answers,
-      segments
-    ),
-  }));
+  return scoreReasonQuestions.map((question) => {
+    const config = question.config as ScoreReasonQuestionConfig;
+    return {
+      category: config.category,
+      blocks: buildReasonBlocksForQuestion(
+        question,
+        responses,
+        answers,
+        segments
+      ),
+    };
+  });
 }

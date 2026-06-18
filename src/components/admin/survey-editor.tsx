@@ -448,6 +448,95 @@ export function SurveyEditor({
     );
   }
 
+  function updateScoreReasonCombination(
+    sectionIndex: number,
+    questionIndex: number,
+    comboIndex: number,
+    value: string
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "score-reason") {
+              return question;
+            }
+            const config = question.config as ScoreReasonQuestionConfig;
+            return {
+              ...question,
+              config: {
+                ...config,
+                combinations: config.combinations.map((combo, index) =>
+                  index === comboIndex ? value : combo
+                ),
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function addScoreReasonCombination(
+    sectionIndex: number,
+    questionIndex: number
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "score-reason") {
+              return question;
+            }
+            const config = question.config as ScoreReasonQuestionConfig;
+            return {
+              ...question,
+              config: {
+                ...config,
+                combinations: [...config.combinations, "새 디자인안"],
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function removeScoreReasonCombination(
+    sectionIndex: number,
+    questionIndex: number,
+    comboIndex: number
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "score-reason") {
+              return question;
+            }
+            const config = question.config as ScoreReasonQuestionConfig;
+            if (config.combinations.length <= 2) return question;
+            return {
+              ...question,
+              config: {
+                ...config,
+                combinations: config.combinations.filter(
+                  (_, index) => index !== comboIndex
+                ),
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
   function updateRankingCombination(
     sectionIndex: number,
     questionIndex: number,
@@ -1017,7 +1106,10 @@ export function SurveyEditor({
 
                   {scoreReasonConfig && (
                     <div className="mt-3 space-y-3">
-                      <div className="grid gap-2 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          구분
+                        </label>
                         <Input
                           value={scoreReasonConfig.category}
                           onChange={(e) =>
@@ -1029,17 +1121,59 @@ export function SurveyEditor({
                           }
                           placeholder="구분"
                         />
-                        <Input
-                          value={scoreReasonConfig.combination}
-                          onChange={(e) =>
-                            updateScoreReasonQuestion(
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">디자인안 목록</p>
+                        {scoreReasonConfig.combinations.map(
+                          (combination, comboIndex) => (
+                            <div
+                              key={`${questionIndex}-design-${comboIndex}`}
+                              className="flex gap-2"
+                            >
+                              <Input
+                                value={combination}
+                                onChange={(e) =>
+                                  updateScoreReasonCombination(
+                                    sectionIndex,
+                                    questionIndex,
+                                    comboIndex,
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="디자인안"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() =>
+                                  removeScoreReasonCombination(
+                                    sectionIndex,
+                                    questionIndex,
+                                    comboIndex
+                                  )
+                                }
+                                disabled={
+                                  scoreReasonConfig.combinations.length <= 2
+                                }
+                              >
+                                삭제
+                              </Button>
+                            </div>
+                          )
+                        )}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="mt-1"
+                          onClick={() =>
+                            addScoreReasonCombination(
                               sectionIndex,
-                              questionIndex,
-                              { combination: e.target.value }
+                              questionIndex
                             )
                           }
-                          placeholder="디자인 안"
-                        />
+                        >
+                          디자인안 추가
+                        </Button>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">
                         <div>
@@ -1055,7 +1189,7 @@ export function SurveyEditor({
                                 { placeholder: e.target.value }
                               )
                             }
-                            placeholder="가장 높은 점수를 준 디자인 안에 대한 이유"
+                            placeholder="가장 높은 점수를 준 디자인안에 대한 이유"
                           />
                         </div>
                         <div>

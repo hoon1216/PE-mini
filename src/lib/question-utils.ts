@@ -67,11 +67,19 @@ export function normalizeQuestionConfig(
   }
 
   if (type === "score-reason") {
-    const raw = (config ?? {}) as Partial<ScoreReasonQuestionConfig>;
+    const raw = (config ?? {}) as Partial<ScoreReasonQuestionConfig> & {
+      combination?: string;
+    };
     const defaults = defaultScoreReasonQuestionConfig();
+    const combinations = raw.combinations?.length
+      ? raw.combinations
+      : raw.combination
+        ? [raw.combination]
+        : defaults.combinations;
+
     return {
       category: raw.category ?? defaults.category,
-      combination: raw.combination ?? defaults.combination,
+      combinations,
       placeholder: raw.placeholder ?? defaults.placeholder,
       maxLength: raw.maxLength ?? defaults.maxLength,
     };

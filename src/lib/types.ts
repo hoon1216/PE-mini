@@ -20,7 +20,7 @@ export interface ScoreQuestionConfig {
 
 export interface ScoreReasonQuestionConfig {
   category: string;
-  combination: string;
+  combinations: string[];
   placeholder?: string;
   maxLength?: number;
 }
@@ -415,8 +415,8 @@ export const GENDER_LABELS: Record<Gender, string> = {
 export function defaultScoreReasonQuestionConfig(): ScoreReasonQuestionConfig {
   return {
     category: "구분",
-    combination: "조합 A",
-    placeholder: "가장 높은 점수를 준 디자인 안에 대한 이유를 입력해주세요",
+    combinations: ["디자인안 A", "디자인안 B"],
+    placeholder: "가장 높은 점수를 준 디자인안에 대한 이유를 입력해주세요",
     maxLength: 500,
   };
 }

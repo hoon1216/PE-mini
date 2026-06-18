@@ -1,26 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
-  getWinningQuestionIdsInCategory,
+  getWinningCombinations,
   parseScoreReasonAnswer,
   serializeScoreReasonAnswer,
-  validateScoreReasonCategory,
+  validateScoreReasonQuestion,
 } from "./score-reason-utils";
 import type { Question } from "./types";
 
-function createQuestion(
-  id: string,
-  category: string,
-  combination: string
-): Question {
+function createQuestion(combinations: string[]): Question {
   return {
-    id,
+    id: "q-score-reason",
     sectionId: "section-1",
-    title: combination,
+    title: "점수 및 이유",
     description: null,
     type: "score-reason",
     config: {
-      category,
-      combination,
+      category: "최종 디자인",
+      combinations,
       maxLength: 500,
     },
     sortOrder: 0,
@@ -28,46 +24,43 @@ function createQuestion(
 }
 
 describe("score-reason-utils", () => {
-  it("serializes and parses score-reason answers", () => {
-    const value = serializeScoreReasonAnswer("6", "심플해서 좋음");
-    expect(parseScoreReasonAnswer(value)).toEqual({
-      score: 6,
+  it("serializes and parses multi-design answers", () => {
+    const value = serializeScoreReasonAnswer(
+      { "디자인안 A": "6", "디자인안 B": "4" },
+      "심플해서 좋음"
+    );
+    expect(parseScoreReasonAnswer(value, ["디자인안 A", "디자인안 B"])).toEqual({
+      scores: { "디자인안 A": 6, "디자인안 B": 4 },
       reason: "심플해서 좋음",
     });
   });
 
-  it("requires reason only for the highest score in a category", () => {
-    const questions = [
-      createQuestion("q-a", "최종 디자인", "A안"),
-      createQuestion("q-b", "최종 디자인", "B안"),
-    ];
+  it("requires reason for the highest-scored design option", () => {
+    const question = createQuestion(["디자인안 A", "디자인안 B"]);
 
     expect(
-      validateScoreReasonCategory(questions, {
-        "q-a": { score: "6", reason: "" },
-        "q-b": { score: "4", reason: "" },
+      validateScoreReasonQuestion(question, {
+        scores: { "디자인안 A": "6", "디자인안 B": "4" },
+        reason: "",
       })
-    ).toBe("가장 높은 점수를 준 디자인 안에 대한 이유를 입력해주세요.");
+    ).toBe("가장 높은 점수를 준 디자인안에 대한 이유를 입력해주세요.");
 
     expect(
-      validateScoreReasonCategory(questions, {
-        "q-a": { score: "6", reason: "색감이 좋음" },
-        "q-b": { score: "4", reason: "" },
+      validateScoreReasonQuestion(question, {
+        scores: { "디자인안 A": "6", "디자인안 B": "4" },
+        reason: "색감이 좋음",
       })
     ).toBeNull();
   });
 
-  it("finds winning question ids", () => {
-    const questions = [
-      createQuestion("q-a", "최종 디자인", "A안"),
-      createQuestion("q-b", "최종 디자인", "B안"),
-    ];
+  it("finds winning design options", () => {
+    const question = createQuestion(["디자인안 A", "디자인안 B"]);
 
     expect(
-      getWinningQuestionIdsInCategory(questions, {
-        "q-a": { score: "5", reason: "" },
-        "q-b": { score: "7", reason: "" },
+      getWinningCombinations(question, {
+        scores: { "디자인안 A": "5", "디자인안 B": "7" },
+        reason: "",
       })
-    ).toEqual(["q-b"]);
+    ).toEqual(["디자인안 B"]);
   });
 });

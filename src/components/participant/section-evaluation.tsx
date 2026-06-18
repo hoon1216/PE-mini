@@ -192,14 +192,23 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
             setScores((prev) => ({ ...prev, [questionId]: String(score) }))
           }
           onScoreReasonChange={(questionId, patch) =>
-            setScoreReasons((prev) => ({
-              ...prev,
-              [questionId]: {
-                score: prev[questionId]?.score ?? "",
-                reason: prev[questionId]?.reason ?? "",
-                ...patch,
-              },
-            }))
+            setScoreReasons((prev) => {
+              const current = prev[questionId] ?? { scores: {}, reason: "" };
+              const nextScores = { ...current.scores };
+
+              if (patch.combination && patch.combinationScore !== undefined) {
+                nextScores[patch.combination] = patch.combinationScore;
+              }
+
+              return {
+                ...prev,
+                [questionId]: {
+                  scores: nextScores,
+                  reason:
+                    patch.reason !== undefined ? patch.reason : current.reason,
+                },
+              };
+            })
           }
           onRankingChange={setRanking}
           onTextChange={(questionId, value) =>

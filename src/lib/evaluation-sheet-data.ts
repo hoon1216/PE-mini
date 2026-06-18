@@ -1,7 +1,7 @@
 import { parseChoiceAnswer } from "./choice-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import {
-  groupScoreReasonQuestionsByCategory,
+  flattenScoreReasonQuestions,
   parseScoreReasonAnswer,
   scoreFromAnswerValue,
 } from "./score-reason-utils";
@@ -16,6 +16,7 @@ import type {
   RankingQuestionConfig,
   Response,
   ScoreQuestionConfig,
+  ScoreReasonQuestionConfig,
   Section,
   SurveyDetail,
 } from "./types";
@@ -117,28 +118,18 @@ function collectScoreReasonText(
   section: Section & { questions: Question[] },
   answersByQuestionId: Map<string, string>
 ): string {
-  const grouped = groupScoreReasonQuestionsByCategory(section.questions);
   const parts: string[] = [];
 
-  for (const [, categoryQuestions] of grouped) {
-    let bestScore = Number.NEGATIVE_INFINITY;
-    let bestReason = "";
-
-    for (const question of categoryQuestions) {
-      const parsed = parseScoreReasonAnswer(
-        answersByQuestionId.get(question.id) ?? ""
-      );
-      if (!parsed) continue;
-
-      if (parsed.score > bestScore) {
-        bestScore = parsed.score;
-        bestReason = parsed.reason.trim();
-      } else if (parsed.score === bestScore && parsed.reason.trim()) {
-        bestReason = parsed.reason.trim();
-      }
-    }
-
-    if (bestReason) parts.push(bestReason);
+  for (const question of section.questions.filter(
+    (entry) => entry.type === "score-reason"
+  )) {
+    const config = question.config as ScoreReasonQuestionConfig;
+    const parsed = parseScoreReasonAnswer(
+      answersByQuestionId.get(question.id) ?? "",
+      config.combinations
+    );
+    if (!parsed?.reason.trim()) continue;
+    parts.push(parsed.reason.trim());
   }
 
   return parts.join("\n");
@@ -211,29 +202,49 @@ function buildBodyColumn(
   section: Section & { questions: Question[] },
   answersByQuestionId: Map<string, string>
 ): BodyColumnData {
-  const scoreQuestions = section.questions
-    .filter((q) => q.type === "score" || q.type === "score-reason")
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const scoreRows: ScoreRow[] = [];
 
-  const scores = scoreQuestions.map((question) => {
+  for (const question of section.questions
+    .filter((q) => q.type === "score" || q.type === "score-reason")
+    .sort((a, b) => a.sortOrder - b.sortOrder)) {
+    if (question.type === "score-reason") {
+      const flattened = flattenScoreReasonQuestions([question]);
+      const config = question.config as ScoreReasonQuestionConfig;
+      const parsed = parseScoreReasonAnswer(
+        answersByQuestionId.get(question.id) ?? "",
+        config.combinations
+      );
+
+      for (const item of flattened) {
+        scoreRows.push({
+          category: item.category,
+          combination: item.combination,
+          score: parsed?.scores[item.combination] ?? null,
+          rank: null,
+        });
+      }
+      continue;
+    }
+
+    const config = question.config as ScoreQuestionConfig;
     const raw = answersByQuestionId.get(question.id);
     const score = raw ? scoreFromAnswerValue(raw) : null;
-    return {
-      id: question.id,
-      score,
-    };
-  });
-
-  const ranks = computeRanksForScores(scores);
-
-  const scoreRows: ScoreRow[] = scoreQuestions.map((question, index) => {
-    const config = question.config as ScoreQuestionConfig;
-    return {
+    scoreRows.push({
       category: config.category,
       combination: config.combination,
-      score: scores[index].score,
-      rank: ranks.get(question.id) ?? null,
-    };
+      score,
+      rank: null,
+    });
+  }
+
+  const ranks = computeRanksForScores(
+    scoreRows.map((row, index) => ({
+      id: String(index),
+      score: row.score,
+    }))
+  );
+  scoreRows.forEach((row, index) => {
+    row.rank = ranks.get(String(index)) ?? null;
   });
 
   const rankingQuestion = section.questions.find((q) => q.type === "ranking");
