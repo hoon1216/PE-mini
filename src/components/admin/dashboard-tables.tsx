@@ -349,7 +349,7 @@ function formatComparisonCell(cell: {
   percent: number;
 }): string {
   if (cell.answered === 0) return "-";
-  return `${cell.percent}%`;
+  return `${cell.percent}% (${cell.count})`;
 }
 
 function groupComparisonSegments(segments: ComparisonSegment[]) {
@@ -580,7 +580,9 @@ export function ChoiceSectionTable({
                   )}
                   <td className={`${tdClass} text-left`}>{row.option}</td>
                   <td className={tdClass}>{row.count}</td>
-                  <td className={tdClass}>{row.percent}</td>
+                  <td className={tdClass}>
+                    {row.percent}% ({row.count})
+                  </td>
                 </tr>
               ))
             )}
@@ -612,7 +614,9 @@ export function ChoiceSectionTable({
             <tr key={row.option}>
               <td className={tdClass}>{row.option}</td>
               <td className={tdClass}>{row.count}</td>
-              <td className={tdClass}>{row.percent}</td>
+              <td className={tdClass}>
+                {row.percent}% ({row.count})
+              </td>
             </tr>
           ))}
         </tbody>

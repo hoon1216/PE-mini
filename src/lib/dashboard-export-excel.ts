@@ -293,7 +293,7 @@ function writeChoiceComparisonTable(
           return segments.map((segment) => {
             const cell = blockRow?.cells[segment.key];
             if (!cell || cell.answered === 0) return "-";
-            return `${cell.percent}%`;
+            return `${cell.percent}% (${cell.count})`;
           });
         }),
       ],
@@ -334,14 +334,21 @@ function writeChoiceTable(
     for (const group of section.groups) {
       for (const option of group.options) {
         writer.addRows([
-          [group.groupName, option.option, option.count, option.percent],
+          [
+            group.groupName,
+            option.option,
+            option.count,
+            `${option.percent}% (${option.count})`,
+          ],
         ]);
       }
     }
   } else {
     writer.addRows([["선택지", "선택 수", "%"]]);
     for (const option of section.groups[0]?.options ?? []) {
-      writer.addRows([[option.option, option.count, option.percent]]);
+      writer.addRows([
+        [option.option, option.count, `${option.percent}% (${option.count})`],
+      ]);
     }
   }
   writer.addBlank(2);
