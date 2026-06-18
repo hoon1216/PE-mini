@@ -21,7 +21,10 @@ import {
   isRankGroupedTextSection,
   shouldShowTextQuestion,
 } from "@/lib/text-grouping-utils";
-import { getWinningCombinations } from "@/lib/score-reason-utils";
+import {
+  getUsedScoreCompareScores,
+  getWinningCombinations,
+} from "@/lib/score-reason-utils";
 import type {
   Question,
   RankingQuestionConfig,
@@ -201,13 +204,19 @@ export function SectionQuestions({
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="mb-3 text-sm font-semibold">{config.category}</p>
                 <p className="mb-3 text-xs text-muted">
-                  각 안에 점수를 부여해주세요.
+                  각 안에 서로 다른 점수를 부여해주세요.
                   {questionIncludesReason(question)
                     ? " 가장 높은 점수를 준 안에 대한 이유도 입력해주세요."
                     : ""}
                 </p>
                 <div className="space-y-4">
-                  {config.combinations.map((combination) => (
+                  {config.combinations.map((combination) => {
+                    const usedScores = getUsedScoreCompareScores(
+                      entry,
+                      combination
+                    );
+
+                    return (
                     <div
                       key={`${question.id}-${combination}`}
                       className="rounded-lg border border-border bg-card p-3 space-y-3"
@@ -220,6 +229,7 @@ export function SectionQuestions({
                           entry.scores[combination] || DEFAULT_SCORE_VALUE
                         )}
                         isSet={!!entry.scores[combination]}
+                        disabledScores={[...usedScores]}
                         onChange={(score) =>
                           onScoreCompareChange(question.id, {
                             combination,
@@ -228,7 +238,8 @@ export function SectionQuestions({
                         }
                       />
                     </div>
-                  ))}
+                    );
+                  })}
                   {questionIncludesReason(question) && winners.length > 0 && (
                     <div className="space-y-2 rounded-lg border border-border bg-card p-3">
                       <label

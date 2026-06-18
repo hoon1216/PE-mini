@@ -13,6 +13,7 @@ import { parseRankingAnswer } from "./demographic-utils";
 import {
   parseScoreReasonAnswer,
   validateScoreCompareQuestion,
+  validateUniqueScoreCompareScores,
 } from "./score-reason-utils";
 import type {
   AgeGroup,
@@ -100,6 +101,17 @@ function validateAnswerForQuestion(
         return `점수는 ${SCORE_MIN}~${SCORE_MAX} 사이여야 합니다.`;
       }
     }
+
+    const duplicateError = validateUniqueScoreCompareScores(config, {
+      scores: Object.fromEntries(
+        Object.entries(parsed.scores).map(([combination, score]) => [
+          combination,
+          String(score),
+        ])
+      ),
+      reason: parsed.reason,
+    });
+    if (duplicateError) return duplicateError;
 
     if (questionIncludesReason(question)) {
       return validateCombinedReasonText(parsed.reason, config);

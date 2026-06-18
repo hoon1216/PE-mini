@@ -7,9 +7,16 @@ interface ScoreSliderProps {
   value: number;
   isSet: boolean;
   onChange: (value: number) => void;
+  /** Scores already assigned to other design options in the same question. */
+  disabledScores?: number[];
 }
 
-export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
+export function ScoreSlider({
+  value,
+  isSet,
+  onChange,
+  disabledScores = [],
+}: ScoreSliderProps) {
   const [touched, setTouched] = useState(isSet);
   const active = touched || isSet;
 
@@ -18,6 +25,7 @@ export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
   }, [isSet]);
 
   function select(score: number) {
+    if (disabledScores.includes(score)) return;
     setTouched(true);
     onChange(score);
   }
@@ -49,14 +57,18 @@ export function ScoreSlider({ value, isSet, onChange }: ScoreSliderProps) {
         <div className="relative flex justify-between gap-0.5">
           {SCORE_VALUES.map((score) => {
             const selected = active && value === score;
+            const disabled = disabledScores.includes(score);
             return (
               <button
                 type="button"
                 key={score}
                 onClick={() => select(score)}
+                disabled={disabled}
                 aria-label={`${score}점 ${SCORE_LABELS[score]}`}
                 aria-pressed={selected}
-                className="relative z-10 flex w-9 flex-col items-center gap-0.5 sm:w-10"
+                className={`relative z-10 flex w-9 flex-col items-center gap-0.5 sm:w-10 ${
+                  disabled ? "cursor-not-allowed opacity-40" : ""
+                }`}
               >
                 <span
                   className="whitespace-nowrap text-[9px] leading-tight text-muted sm:text-[10px]"

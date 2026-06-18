@@ -125,6 +125,45 @@ export function scoreFromAnswerValue(
   return Number.isFinite(score) ? score : null;
 }
 
+export function getUsedScoreCompareScores(
+  entry: ScoreReasonDraftLike | undefined,
+  excludeCombination?: string
+): Set<number> {
+  const used = new Set<number>();
+
+  if (!entry?.scores) return used;
+
+  for (const [combination, scoreValue] of Object.entries(entry.scores)) {
+    if (excludeCombination && combination === excludeCombination) continue;
+    if (!isValidScoreValue(scoreValue)) continue;
+    used.add(Number(scoreValue));
+  }
+
+  return used;
+}
+
+export function validateUniqueScoreCompareScores(
+  config: ScoreCompareQuestionConfig,
+  entry: ScoreReasonDraftLike | undefined
+): string | null {
+  if (!entry?.scores) return null;
+
+  const seen = new Set<number>();
+
+  for (const combination of config.combinations) {
+    const scoreValue = entry.scores[combination];
+    if (!scoreValue || !isValidScoreValue(scoreValue)) continue;
+
+    const score = Number(scoreValue);
+    if (seen.has(score)) {
+      return "디자인 안마다 서로 다른 점수를 선택해주세요.";
+    }
+    seen.add(score);
+  }
+
+  return null;
+}
+
 export function getWinningCombinations(
   question: Question,
   entry: ScoreReasonDraftLike | undefined
@@ -160,6 +199,9 @@ export function validateScoreCompareQuestion(
       return "모든 안의 점수를 선택해주세요.";
     }
   }
+
+  const duplicateError = validateUniqueScoreCompareScores(config, entry);
+  if (duplicateError) return duplicateError;
 
   const winners = getWinningCombinations(question, entry);
   if (winners.length === 0) {

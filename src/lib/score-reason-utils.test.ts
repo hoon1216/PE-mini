@@ -67,4 +67,15 @@ describe("score-compare-utils", () => {
       })
     ).toEqual(["디자인안 B"]);
   });
+
+  it("rejects duplicate scores across design options", () => {
+    const question = createQuestion(["디자인안 A", "디자인안 B"]);
+
+    expect(
+      validateScoreCompareQuestion(question, {
+        scores: { "디자인안 A": "5", "디자인안 B": "5" },
+        reason: "",
+      })
+    ).toBe("디자인 안마다 서로 다른 점수를 선택해주세요.");
+  });
 });
