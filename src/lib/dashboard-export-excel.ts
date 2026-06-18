@@ -151,6 +151,35 @@ function writeScoreTable(
   writer.addBlank(2);
 }
 
+function writeScoreReasonTable(
+  writer: SheetWriter,
+  table: Extract<DashboardSectionTable, { type: "score-reason" }>
+) {
+  writeScoreTable(writer, {
+    type: "score",
+    data: {
+      ...table.data.scoreStats,
+    },
+  });
+
+  for (const category of table.data.reasonCategories) {
+    writer.addRows([[`${category.category} — 고득점 디자인 안 선호 이유`]]);
+
+    for (const block of category.blocks) {
+      writer.addRows([[block.winningCombination]]);
+      writer.addRows([block.segments.map((segment) => segment.label)]);
+      writer.addRows([
+        block.segments.map((segment) => {
+          const responses = block.bySegment[segment.key] ?? [];
+          return responses.length > 0 ? responses.join("\n") : "-";
+        }),
+      ]);
+    }
+  }
+
+  writer.addBlank(2);
+}
+
 function writeRankingTable(
   writer: SheetWriter,
   table: Extract<DashboardSectionTable, { type: "ranking" }>
@@ -396,6 +425,7 @@ export async function buildDashboardExcelBuffer(
 
     for (const table of group.tables) {
       if (table.type === "score") writeScoreTable(writer, table);
+      if (table.type === "score-reason") writeScoreReasonTable(writer, table);
       if (table.type === "ranking") writeRankingTable(writer, table);
       if (table.type === "text") writeTextTable(writer, table);
       if (table.type === "choice-comparison") {

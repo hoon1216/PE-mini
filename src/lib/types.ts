@@ -1,4 +1,9 @@
-export type QuestionType = "score" | "ranking" | "text" | "choice";
+export type QuestionType =
+  | "score"
+  | "score-reason"
+  | "ranking"
+  | "text"
+  | "choice";
 export type Gender = "male" | "female";
 export type AgeGroup = "10s" | "20s" | "30s" | "40s" | "50s" | "60s";
 
@@ -11,6 +16,13 @@ export interface DemographicFieldConfig {
 export interface ScoreQuestionConfig {
   category: string;
   combination: string;
+}
+
+export interface ScoreReasonQuestionConfig {
+  category: string;
+  combination: string;
+  placeholder?: string;
+  maxLength?: number;
 }
 
 export interface RankingQuestionConfig {
@@ -38,12 +50,14 @@ export interface ChoiceQuestionConfig {
 
 export type QuestionConfig =
   | ScoreQuestionConfig
+  | ScoreReasonQuestionConfig
   | RankingQuestionConfig
   | TextQuestionConfig
   | ChoiceQuestionConfig;
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   score: "점수 부과형",
+  "score-reason": "점수 부과 및 이유",
   ranking: "순위 선정형",
   text: "주관식",
   choice: "객관식",
@@ -312,8 +326,27 @@ export interface ChoiceComparisonSectionStats {
   reasonGroups: ChoiceComparisonReasonGroup[];
 }
 
+export interface ScoreReasonBlockStats {
+  winningCombination: string;
+  segments: ComparisonSegment[];
+  bySegment: Record<string, string[]>;
+}
+
+export interface ScoreReasonCategoryStats {
+  category: string;
+  blocks: ScoreReasonBlockStats[];
+}
+
+export interface ScoreReasonSectionStats {
+  sectionId: string;
+  sectionTitle: string;
+  scoreStats: ScoreSectionStats;
+  reasonCategories: ScoreReasonCategoryStats[];
+}
+
 export type DashboardSectionTable =
   | { type: "score"; data: ScoreSectionStats }
+  | { type: "score-reason"; data: ScoreReasonSectionStats }
   | { type: "ranking"; data: RankingSectionStats }
   | { type: "text"; data: TextSectionStats }
   | { type: "choice"; data: ChoiceSectionStats }
@@ -379,6 +412,15 @@ export const GENDER_LABELS: Record<Gender, string> = {
   female: "여",
 };
 
+export function defaultScoreReasonQuestionConfig(): ScoreReasonQuestionConfig {
+  return {
+    category: "구분",
+    combination: "조합 A",
+    placeholder: "가장 높은 점수를 준 디자인 안에 대한 이유를 입력해주세요",
+    maxLength: 500,
+  };
+}
+
 export function defaultScoreQuestionConfig(): ScoreQuestionConfig {
   return { category: "구분", combination: "조합 A" };
 }
@@ -402,6 +444,7 @@ export function configForQuestionType(type: QuestionType): QuestionConfig {
   if (type === "ranking") return defaultRankingQuestionConfig();
   if (type === "text") return defaultTextQuestionConfig();
   if (type === "choice") return defaultChoiceQuestionConfig();
+  if (type === "score-reason") return defaultScoreReasonQuestionConfig();
   return defaultScoreQuestionConfig();
 }
 
@@ -409,6 +452,7 @@ export function defaultQuestionTitle(type: QuestionType): string {
   if (type === "ranking") return "순위 문항";
   if (type === "text") return "주관식 문항";
   if (type === "choice") return "객관식 문항";
+  if (type === "score-reason") return "점수 및 이유 문항";
   return "점수 문항";
 }
 

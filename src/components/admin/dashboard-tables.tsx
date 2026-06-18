@@ -5,6 +5,7 @@ import type {
   Gender,
   RankingSectionStats,
   ScoreSectionStats,
+  ScoreReasonSectionStats,
   TextSectionStats,
   ChoiceSectionStats,
   ChoiceComparisonSectionStats,
@@ -790,6 +791,95 @@ export function TextSectionTable({
   );
 }
 
+export function ScoreReasonSectionTable({
+  section,
+}: {
+  section: ScoreReasonSectionStats;
+}) {
+  return (
+    <div className="space-y-6">
+      <ScoreSectionTable
+        section={section.scoreStats}
+        tableLabel="점수 부과 및 이유"
+      />
+
+      {section.reasonCategories.map((category) => (
+        <div key={category.category} className="space-y-4">
+          <p className="text-sm font-medium">
+            {category.category} — 고득점 디자인 안 선호 이유
+          </p>
+          {category.blocks.length === 0 ? (
+            <p className="text-sm text-muted">제출된 이유가 없습니다.</p>
+          ) : (
+            category.blocks.map((block) => {
+              const segmentGroups = groupComparisonSegments(block.segments);
+
+              return (
+                <div
+                  key={`${category.category}-${block.winningCombination}`}
+                  className="overflow-x-auto"
+                >
+                  <h4 className="mb-2 text-base font-semibold">
+                    {block.winningCombination}
+                  </h4>
+                  <table className="w-full min-w-[720px] border-collapse border border-slate-300 text-sm">
+                    <thead>
+                      <tr>
+                        {segmentGroups.map((group) => (
+                          <th
+                            key={group.label}
+                            colSpan={group.segments.length}
+                            className={thClass}
+                          >
+                            {group.label}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr>
+                        {block.segments.map((segment) => (
+                          <th key={segment.key} className={thClass}>
+                            {segment.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        {block.segments.map((segment) => {
+                          const responses = block.bySegment[segment.key] ?? [];
+
+                          return (
+                            <td
+                              key={segment.key}
+                              className={`${tdClass} text-left align-top`}
+                            >
+                              {responses.length === 0 ? (
+                                <span className="text-muted">-</span>
+                              ) : (
+                                <div className="space-y-1">
+                                  {responses.map((response, index) => (
+                                    <p key={`${segment.key}-${index}`}>
+                                      {response}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function DashboardSectionTables({ stats }: { stats: DashboardStats }) {
   const orderedGroups = [...stats.sectionGroups].sort(
     (a, b) => a.sortOrder - b.sortOrder
@@ -817,6 +907,11 @@ export function DashboardSectionTables({ stats }: { stats: DashboardStats }) {
                     key={`${group.sectionId}-score`}
                     section={table.data}
                     tableLabel="점수 부과형"
+                  />
+                ) : table.type === "score-reason" ? (
+                  <ScoreReasonSectionTable
+                    key={`${group.sectionId}-score-reason`}
+                    section={table.data}
                   />
                 ) : table.type === "ranking" ? (
                   <RankingSectionTable

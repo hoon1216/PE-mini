@@ -13,6 +13,7 @@ import {
   saveDraft,
   sectionHasQuestions,
   validateSectionAnswers,
+  type ScoreReasonDraftEntry,
 } from "@/lib/evaluation-draft";
 import type { RankingAnswer } from "@/lib/ranking-utils";
 import type { SurveyDetail } from "@/lib/types";
@@ -26,6 +27,9 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
   const router = useRouter();
   const [survey, setSurvey] = useState<SurveyDetail | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
+  const [scoreReasons, setScoreReasons] = useState<
+    Record<string, ScoreReasonDraftEntry>
+  >({});
   const [rankings, setRankings] = useState<Record<string, RankingAnswer>>({});
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string[]>>({});
@@ -39,6 +43,7 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
         setSurvey(data);
         const draft = getOrCreateDraft(data.id);
         setScores({ ...draft.scores });
+        setScoreReasons({ ...draft.scoreReasons });
         setRankings({ ...draft.rankings });
         setTexts({ ...draft.texts });
         setChoices({ ...draft.choices });
@@ -74,6 +79,7 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
     const validationError = validateSectionAnswers(
       section,
       scores,
+      scoreReasons,
       rankings,
       texts,
       choices
@@ -88,6 +94,7 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
 
     const draft = getOrCreateDraft(survey.id);
     draft.scores = { ...draft.scores, ...scores };
+    draft.scoreReasons = { ...draft.scoreReasons, ...scoreReasons };
     draft.rankings = { ...draft.rankings, ...rankings };
     draft.texts = { ...draft.texts, ...texts };
     draft.choices = { ...draft.choices, ...choices };
@@ -177,11 +184,22 @@ export function SectionEvaluation({ slug, sectionId }: SectionEvaluationProps) {
         <SectionQuestions
           section={section}
           scores={scores}
+          scoreReasons={scoreReasons}
           rankings={rankings}
           texts={texts}
           choices={choices}
           onScoreChange={(questionId, score) =>
             setScores((prev) => ({ ...prev, [questionId]: String(score) }))
+          }
+          onScoreReasonChange={(questionId, patch) =>
+            setScoreReasons((prev) => ({
+              ...prev,
+              [questionId]: {
+                score: prev[questionId]?.score ?? "",
+                reason: prev[questionId]?.reason ?? "",
+                ...patch,
+              },
+            }))
           }
           onRankingChange={setRanking}
           onTextChange={(questionId, value) =>

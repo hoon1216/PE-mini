@@ -4,6 +4,7 @@ import type {
   QuestionType,
   RankingQuestionConfig,
   ScoreQuestionConfig,
+  ScoreReasonQuestionConfig,
   TextQuestionConfig,
   ChoiceQuestionConfig,
 } from "./types";
@@ -14,6 +15,7 @@ import {
   defaultChoiceQuestionConfig,
   defaultRankingQuestionConfig,
   defaultScoreQuestionConfig,
+  defaultScoreReasonQuestionConfig,
   defaultTextQuestionConfig,
 } from "./types";
 
@@ -61,6 +63,17 @@ export function normalizeQuestionConfig(
     return {
       category: raw.category ?? defaultScoreQuestionConfig().category,
       combination: raw.combination ?? defaultScoreQuestionConfig().combination,
+    };
+  }
+
+  if (type === "score-reason") {
+    const raw = (config ?? {}) as Partial<ScoreReasonQuestionConfig>;
+    const defaults = defaultScoreReasonQuestionConfig();
+    return {
+      category: raw.category ?? defaults.category,
+      combination: raw.combination ?? defaults.combination,
+      placeholder: raw.placeholder ?? defaults.placeholder,
+      maxLength: raw.maxLength ?? defaults.maxLength,
     };
   }
 

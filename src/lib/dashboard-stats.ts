@@ -34,6 +34,8 @@ import {
   buildChoiceComparisonSectionStats,
 } from "./choice-comparison-stats";
 import { buildTextDemographicItems } from "./text-demographic-stats";
+import { scoreFromAnswerValue } from "./score-reason-utils";
+import { buildScoreReasonCategories } from "./score-reason-stats";
 import {
   findPrecedingRankingQuestion,
   isRankGroupedTextSection,
@@ -124,8 +126,7 @@ function scoreForItem(
     (a) => a.responseId === responseId && a.questionId === itemId
   );
   if (!answer) return null;
-  const score = Number(answer.value);
-  return Number.isFinite(score) ? score : null;
+  return scoreFromAnswerValue(answer.value);
 }
 
 function buildScoreCellsForResponses(
@@ -560,8 +561,34 @@ export function computeDashboardStats(
   const sectionGroups = survey.sections.map((section) => {
     const tables: DashboardStats["sectionGroups"][number]["tables"] = [];
     const scoreQuestions = section.questions.filter((q) => q.type === "score");
+    const scoreReasonQuestions = section.questions.filter(
+      (q) => q.type === "score-reason"
+    );
 
-    if (scoreQuestions.length > 0) {
+    if (scoreReasonQuestions.length > 0) {
+      tables.push({
+        type: "score-reason",
+        data: {
+          sectionId: section.id,
+          sectionTitle: section.title,
+          scoreStats: buildScoreSectionStats(
+            section,
+            scoreReasonQuestions,
+            responses,
+            answers,
+            ageGroups,
+            survey.demographicFields[0] ?? null
+          ),
+          reasonCategories: buildScoreReasonCategories(
+            section,
+            scoreReasonQuestions,
+            responses,
+            answers,
+            survey.demographicFields
+          ),
+        },
+      });
+    } else if (scoreQuestions.length > 0) {
       tables.push({
         type: "score",
         data: buildScoreSectionStats(

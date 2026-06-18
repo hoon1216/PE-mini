@@ -14,6 +14,7 @@ import {
   isSectionCompleted,
   saveDraft,
   sectionHasQuestions,
+  type ScoreReasonDraftEntry,
 } from "@/lib/evaluation-draft";
 import type { RankingAnswer } from "@/lib/ranking-utils";
 import type { AgeGroup, Gender, SurveyDetail } from "@/lib/types";
@@ -34,6 +35,9 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
   >({});
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [draftScores, setDraftScores] = useState<Record<string, string>>({});
+  const [draftScoreReasons, setDraftScoreReasons] = useState<
+    Record<string, ScoreReasonDraftEntry>
+  >({});
   const [draftRankings, setDraftRankings] = useState<
     Record<string, RankingAnswer>
   >({});
@@ -52,6 +56,7 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
     setDemographicValues({ ...draft.demographicValues });
     setCompletedIds([...draft.completedSectionIds]);
     setDraftScores({ ...draft.scores });
+    setDraftScoreReasons({ ...draft.scoreReasons });
     setDraftRankings({ ...draft.rankings });
     setDraftTexts({ ...draft.texts });
     setDraftChoices({ ...draft.choices });
@@ -122,6 +127,7 @@ export function EvaluationHome({ slug }: EvaluationHomeProps) {
         demographicValues,
         completedSectionIds: completedIds,
         scores: draftScores,
+        scoreReasons: draftScoreReasons,
         rankings: draftRankings,
         texts: draftTexts,
         choices: draftChoices,

@@ -1,6 +1,11 @@
 import { parseChoiceAnswer } from "./choice-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import {
+  groupScoreReasonQuestionsByCategory,
+  parseScoreReasonAnswer,
+  scoreFromAnswerValue,
+} from "./score-reason-utils";
+import {
   getRank1FromAnswerMap,
   shouldShowTextQuestion,
 } from "./text-grouping-utils";
@@ -108,6 +113,37 @@ function collectTextReason(
   return "";
 }
 
+function collectScoreReasonText(
+  section: Section & { questions: Question[] },
+  answersByQuestionId: Map<string, string>
+): string {
+  const grouped = groupScoreReasonQuestionsByCategory(section.questions);
+  const parts: string[] = [];
+
+  for (const [, categoryQuestions] of grouped) {
+    let bestScore = Number.NEGATIVE_INFINITY;
+    let bestReason = "";
+
+    for (const question of categoryQuestions) {
+      const parsed = parseScoreReasonAnswer(
+        answersByQuestionId.get(question.id) ?? ""
+      );
+      if (!parsed) continue;
+
+      if (parsed.score > bestScore) {
+        bestScore = parsed.score;
+        bestReason = parsed.reason.trim();
+      } else if (parsed.score === bestScore && parsed.reason.trim()) {
+        bestReason = parsed.reason.trim();
+      }
+    }
+
+    if (bestReason) parts.push(bestReason);
+  }
+
+  return parts.join("\n");
+}
+
 const PREFERENCE_REASON_TITLE = "1순위 선호 이유";
 
 function isPreferenceReasonQuestion(question: Question): boolean {
@@ -159,7 +195,9 @@ export function collectPreferenceReason(
 export function isPreferenceSection(
   section: Section & { questions: Question[] }
 ): boolean {
-  const scoreCount = section.questions.filter((q) => q.type === "score").length;
+  const scoreCount = section.questions.filter(
+    (q) => q.type === "score" || q.type === "score-reason"
+  ).length;
   if (scoreCount > 0) return false;
 
   const ranking = section.questions.find((q) => q.type === "ranking");
@@ -174,15 +212,15 @@ function buildBodyColumn(
   answersByQuestionId: Map<string, string>
 ): BodyColumnData {
   const scoreQuestions = section.questions
-    .filter((q) => q.type === "score")
+    .filter((q) => q.type === "score" || q.type === "score-reason")
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const scores = scoreQuestions.map((question) => {
     const raw = answersByQuestionId.get(question.id);
-    const score = raw ? Number(raw) : null;
+    const score = raw ? scoreFromAnswerValue(raw) : null;
     return {
       id: question.id,
-      score: Number.isFinite(score) ? score : null,
+      score,
     };
   });
 
@@ -217,7 +255,9 @@ function buildBodyColumn(
     sectionTitle: section.title,
     scoreRows,
     groupRanks,
-    firstRankReason: collectTextReason(section, answersByQuestionId),
+    firstRankReason:
+      collectTextReason(section, answersByQuestionId) ||
+      collectScoreReasonText(section, answersByQuestionId),
   };
 }
 
@@ -234,7 +274,9 @@ export function buildEvaluationSheet(
 
   const sections = [...survey.sections].sort((a, b) => a.sortOrder - b.sortOrder);
   const bodySections = sections.filter((section) =>
-    section.questions.some((question) => question.type === "score")
+    section.questions.some(
+      (question) => question.type === "score" || question.type === "score-reason"
+    )
   );
   const preferenceSection =
     sections.find(isPreferenceSection) ??

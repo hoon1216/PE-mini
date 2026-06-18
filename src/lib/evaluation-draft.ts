@@ -17,6 +17,11 @@ import {
   validateRankingAnswer,
   type RankingAnswer,
 } from "./ranking-utils";
+import {
+  groupScoreReasonQuestionsByCategory,
+  serializeScoreReasonAnswer,
+  validateScoreReasonCategory,
+} from "./score-reason-utils";
 import type {
   AgeGroup,
   Gender,
@@ -28,6 +33,11 @@ import type {
   ChoiceQuestionConfig,
 } from "./types";
 
+export interface ScoreReasonDraftEntry {
+  score: string;
+  reason: string;
+}
+
 export interface EvaluationDraft {
   surveyId: string;
   participantName: string;
@@ -36,6 +46,7 @@ export interface EvaluationDraft {
   demographicValues: Record<string, string>;
   completedSectionIds: string[];
   scores: Record<string, string>;
+  scoreReasons: Record<string, ScoreReasonDraftEntry>;
   rankings: Record<string, RankingAnswer>;
   texts: Record<string, string>;
   choices: Record<string, string[]>;
@@ -72,6 +83,7 @@ export function createEmptyDraft(surveyId: string): EvaluationDraft {
     demographicValues: {},
     completedSectionIds: [],
     scores: {},
+    scoreReasons: {},
     rankings: {},
     texts: {},
     choices: {},
@@ -88,6 +100,7 @@ export function loadDraft(surveyId: string): EvaluationDraft | null {
       ...createEmptyDraft(surveyId),
       ...parsed,
       texts: parsed.texts ?? {},
+      scoreReasons: parsed.scoreReasons ?? {},
       choices: normalizeDraftChoices(parsed.choices),
       demographicValues: normalizeDemographicValues(parsed.demographicValues),
     };
@@ -116,6 +129,7 @@ export function sectionHasQuestions(
   return section.questions.some(
     (q) =>
       q.type === "score" ||
+      q.type === "score-reason" ||
       q.type === "ranking" ||
       q.type === "text" ||
       q.type === "choice"
@@ -125,17 +139,31 @@ export function sectionHasQuestions(
 export function validateSectionAnswers(
   section: Section & { questions: Question[] },
   scores: Record<string, string>,
+  scoreReasons: Record<string, ScoreReasonDraftEntry>,
   rankings: Record<string, RankingAnswer>,
   texts: Record<string, string>,
   choices: Record<string, string[]>
 ): string | null {
   const rank1 = getRank1ForSection(section, rankings);
+  const scoreReasonByCategory = groupScoreReasonQuestionsByCategory(
+    section.questions
+  );
+
+  for (const [, categoryQuestions] of scoreReasonByCategory) {
+    const categoryError = validateScoreReasonCategory(
+      categoryQuestions,
+      scoreReasons
+    );
+    if (categoryError) return categoryError;
+  }
 
   for (const question of section.questions) {
     if (question.type === "score") {
       if (!scores[question.id]) {
         return "모든 항목의 점수를 선택해주세요.";
       }
+    } else if (question.type === "score-reason") {
+      continue;
     } else if (question.type === "ranking") {
       const config = question.config as RankingQuestionConfig;
       const rankingError = validateRankingAnswer(
@@ -179,6 +207,7 @@ export function isSectionCompleted(
     validateSectionAnswers(
       section,
       draft.scores,
+      draft.scoreReasons,
       draft.rankings,
       draft.texts,
       draft.choices
@@ -218,6 +247,7 @@ export function validateDraftForSubmit(
     const error = validateSectionAnswers(
       section,
       draft.scores,
+      draft.scoreReasons,
       draft.rankings,
       draft.texts,
       draft.choices
@@ -251,6 +281,15 @@ export function buildSubmitPayload(
         answers.push({
           questionId: question.id,
           value: score,
+        });
+      } else if (question.type === "score-reason") {
+        const entry = draft.scoreReasons[question.id];
+        if (!entry?.score) {
+          throw new Error("모든 항목의 점수를 선택해주세요.");
+        }
+        answers.push({
+          questionId: question.id,
+          value: serializeScoreReasonAnswer(entry.score, entry.reason ?? ""),
         });
       } else if (question.type === "ranking") {
         const config = question.config as RankingQuestionConfig;

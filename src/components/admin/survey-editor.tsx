@@ -19,6 +19,7 @@ import type {
   QuestionType,
   RankingQuestionConfig,
   ScoreQuestionConfig,
+  ScoreReasonQuestionConfig,
   Section,
   SurveyDetail,
   TextQuestionConfig,
@@ -69,6 +70,9 @@ function mapSurveyToEditorSections(data: SurveyDetail): EditorSection[] {
 function cloneQuestionConfig(question: EditorQuestion): QuestionConfig {
   if (question.type === "score") {
     return { ...(question.config as ScoreQuestionConfig) };
+  }
+  if (question.type === "score-reason") {
+    return { ...(question.config as ScoreReasonQuestionConfig) };
   }
   if (question.type === "text") {
     return { ...(question.config as TextQuestionConfig) };
@@ -408,6 +412,33 @@ export function SurveyEditor({
               ...question,
               config: {
                 ...(question.config as ScoreQuestionConfig),
+                ...patch,
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function updateScoreReasonQuestion(
+    sectionIndex: number,
+    questionIndex: number,
+    patch: Partial<ScoreReasonQuestionConfig>
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "score-reason") {
+              return question;
+            }
+            return {
+              ...question,
+              config: {
+                ...(question.config as ScoreReasonQuestionConfig),
                 ...patch,
               },
             };
@@ -867,6 +898,10 @@ export function SurveyEditor({
                 question.type === "score"
                   ? (question.config as ScoreQuestionConfig)
                   : null;
+              const scoreReasonConfig =
+                question.type === "score-reason"
+                  ? (question.config as ScoreReasonQuestionConfig)
+                  : null;
               const rankingConfig =
                 question.type === "ranking"
                   ? (question.config as RankingQuestionConfig)
@@ -975,8 +1010,74 @@ export function SurveyEditor({
                             combination: e.target.value,
                           })
                         }
-                        placeholder="조합"
+                        placeholder="디자인 안"
                       />
+                    </div>
+                  )}
+
+                  {scoreReasonConfig && (
+                    <div className="mt-3 space-y-3">
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <Input
+                          value={scoreReasonConfig.category}
+                          onChange={(e) =>
+                            updateScoreReasonQuestion(
+                              sectionIndex,
+                              questionIndex,
+                              { category: e.target.value }
+                            )
+                          }
+                          placeholder="구분"
+                        />
+                        <Input
+                          value={scoreReasonConfig.combination}
+                          onChange={(e) =>
+                            updateScoreReasonQuestion(
+                              sectionIndex,
+                              questionIndex,
+                              { combination: e.target.value }
+                            )
+                          }
+                          placeholder="디자인 안"
+                        />
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div>
+                          <label className="mb-1 block text-sm font-medium">
+                            이유 입력 안내 (placeholder)
+                          </label>
+                          <Input
+                            value={scoreReasonConfig.placeholder ?? ""}
+                            onChange={(e) =>
+                              updateScoreReasonQuestion(
+                                sectionIndex,
+                                questionIndex,
+                                { placeholder: e.target.value }
+                              )
+                            }
+                            placeholder="가장 높은 점수를 준 디자인 안에 대한 이유"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium">
+                            이유 최대 글자 수
+                          </label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={scoreReasonConfig.maxLength ?? 500}
+                            onChange={(e) =>
+                              updateScoreReasonQuestion(
+                                sectionIndex,
+                                questionIndex,
+                                {
+                                  maxLength: Number(e.target.value) || 500,
+                                }
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 

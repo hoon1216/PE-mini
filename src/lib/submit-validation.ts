@@ -4,11 +4,17 @@ import {
 } from "./choice-utils";
 import { validateDemographicValues } from "./demographic-field-utils";
 import { parseRankingAnswer } from "./demographic-utils";
+import {
+  groupScoreReasonQuestionsByCategory,
+  parseScoreReasonAnswer,
+  validateScoreReasonCategory,
+} from "./score-reason-utils";
 import type {
   AgeGroup,
   Gender,
   Question,
   RankingQuestionConfig,
+  ScoreReasonQuestionConfig,
   SubmitResponseInput,
   SurveyDetail,
   TextQuestionConfig,
@@ -68,6 +74,21 @@ function validateAnswerForQuestion(
 ): string | null {
   if (question.type === "score") {
     return validateScoreValue(value);
+  }
+
+  if (question.type === "score-reason") {
+    const parsed = parseScoreReasonAnswer(value);
+    if (!parsed || !isValidScoreValue(String(parsed.score))) {
+      return `점수는 ${SCORE_MIN}~${SCORE_MAX} 사이여야 합니다.`;
+    }
+
+    const config = question.config as ScoreReasonQuestionConfig;
+    const maxLength = config.maxLength ?? 500;
+    if (parsed.reason.trim().length > maxLength) {
+      return `이유는 ${maxLength}자 이하여야 합니다.`;
+    }
+
+    return null;
   }
 
   if (question.type === "ranking") {
@@ -159,6 +180,33 @@ export function validateSubmitResponse(
   for (const question of requiredQuestions) {
     if (!seenQuestionIds.has(question.id)) {
       throw new SubmitValidationError("모든 문항에 답변해주세요.");
+    }
+  }
+
+  for (const section of survey.sections) {
+    const grouped = groupScoreReasonQuestionsByCategory(section.questions);
+    for (const [, categoryQuestions] of grouped) {
+      const scoreReasons: Record<string, { score: string; reason: string }> =
+        {};
+
+      for (const question of categoryQuestions) {
+        const value = answerMap.get(question.id) ?? "";
+        const parsed = parseScoreReasonAnswer(value);
+        if (parsed) {
+          scoreReasons[question.id] = {
+            score: String(parsed.score),
+            reason: parsed.reason,
+          };
+        }
+      }
+
+      const categoryError = validateScoreReasonCategory(
+        categoryQuestions,
+        scoreReasons
+      );
+      if (categoryError) {
+        throw new SubmitValidationError(categoryError);
+      }
     }
   }
 }

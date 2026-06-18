@@ -19,14 +19,19 @@ import {
   isRankGroupedTextSection,
   shouldShowTextQuestion,
 } from "@/lib/text-grouping-utils";
+import {
+  getWinningQuestionIdsInCategory,
+} from "@/lib/score-reason-utils";
 import type {
   Question,
   RankingQuestionConfig,
   ScoreQuestionConfig,
+  ScoreReasonQuestionConfig,
   Section,
   TextQuestionConfig,
   ChoiceQuestionConfig,
 } from "@/lib/types";
+import type { ScoreReasonDraftEntry } from "@/lib/evaluation-draft";
 import { DEFAULT_SCORE_VALUE, SCORE_MAX, SCORE_MIN } from "@/lib/types";
 
 const RANK_LABELS: Record<RankingField, string> = {
@@ -37,6 +42,7 @@ const RANK_LABELS: Record<RankingField, string> = {
 
 type OrderedSegment =
   | { kind: "score-group"; category: string; questions: Question[] }
+  | { kind: "score-reason-group"; category: string; questions: Question[] }
   | { kind: "question"; question: Question };
 
 function buildOrderedSegments(questions: Question[]): OrderedSegment[] {
@@ -44,13 +50,27 @@ function buildOrderedSegments(questions: Question[]): OrderedSegment[] {
   const segments: OrderedSegment[] = [];
 
   for (const question of sorted) {
-    if (question.type === "score") {
-      const category = (question.config as ScoreQuestionConfig).category;
+    if (question.type === "score" || question.type === "score-reason") {
+      const category =
+        question.type === "score"
+          ? (question.config as ScoreQuestionConfig).category
+          : (question.config as ScoreReasonQuestionConfig).category;
+      const groupKind =
+        question.type === "score" ? "score-group" : "score-reason-group";
       const last = segments[segments.length - 1];
-      if (last?.kind === "score-group" && last.category === category) {
+
+      if (
+        (last?.kind === "score-group" || last?.kind === "score-reason-group") &&
+        last.kind === groupKind &&
+        last.category === category
+      ) {
         last.questions.push(question);
       } else {
-        segments.push({ kind: "score-group", category, questions: [question] });
+        segments.push({
+          kind: groupKind,
+          category,
+          questions: [question],
+        });
       }
       continue;
     }
@@ -64,10 +84,15 @@ function buildOrderedSegments(questions: Question[]): OrderedSegment[] {
 interface SectionQuestionsProps {
   section: Section & { questions: Question[] };
   scores: Record<string, string>;
+  scoreReasons: Record<string, ScoreReasonDraftEntry>;
   rankings: Record<string, RankingAnswer>;
   texts: Record<string, string>;
   choices: Record<string, string[]>;
   onScoreChange: (questionId: string, score: number) => void;
+  onScoreReasonChange: (
+    questionId: string,
+    patch: Partial<ScoreReasonDraftEntry>
+  ) => void;
   onRankingChange: (
     questionId: string,
     field: RankingField,
@@ -80,10 +105,12 @@ interface SectionQuestionsProps {
 export function SectionQuestions({
   section,
   scores,
+  scoreReasons,
   rankings,
   texts,
   choices,
   onScoreChange,
+  onScoreReasonChange,
   onRankingChange,
   onTextChange,
   onChoiceChange,
@@ -101,7 +128,8 @@ export function SectionQuestions({
     shouldShowTextQuestion(question, section, rank1)
   );
   const firstScoreSegmentIndex = segments.findIndex(
-    (segment) => segment.kind === "score-group"
+    (segment) =>
+      segment.kind === "score-group" || segment.kind === "score-reason-group"
   );
 
   return (
@@ -140,6 +168,96 @@ export function SectionQuestions({
                               onScoreChange(question.id, score)
                             }
                           />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        if (segment.kind === "score-reason-group") {
+          const showTypeLabel = index === firstScoreSegmentIndex;
+          const winners = getWinningQuestionIdsInCategory(
+            segment.questions,
+            scoreReasons
+          );
+
+          return (
+            <div
+              key={`score-reason-${segment.category}-${segment.questions[0]?.id}`}
+            >
+              {showTypeLabel && (
+                <p className="mb-4 text-xs text-muted">
+                  점수 부과 및 이유 ({SCORE_MIN}~{SCORE_MAX}점)
+                </p>
+              )}
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="mb-3 text-sm font-semibold">{segment.category}</p>
+                  <p className="mb-3 text-xs text-muted">
+                    각 디자인 안에 점수를 부여한 뒤, 가장 높은 점수를 준
+                    디자인 안에 대한 이유를 입력해주세요.
+                  </p>
+                  <div className="space-y-4">
+                    {segment.questions.map((question) => {
+                      const config =
+                        question.config as ScoreReasonQuestionConfig;
+                      const entry = scoreReasons[question.id] ?? {
+                        score: "",
+                        reason: "",
+                      };
+                      const maxLength = config.maxLength ?? 500;
+                      const isWinner = winners.includes(question.id);
+
+                      return (
+                        <div
+                          key={question.id}
+                          className="rounded-lg border border-border bg-card p-3 space-y-3"
+                        >
+                          <p className="text-sm font-medium text-muted">
+                            {config.combination}
+                          </p>
+                          <ScoreSlider
+                            value={Number(entry.score || DEFAULT_SCORE_VALUE)}
+                            isSet={!!entry.score}
+                            onChange={(score) =>
+                              onScoreReasonChange(question.id, {
+                                score: String(score),
+                              })
+                            }
+                          />
+                          {isWinner && (
+                            <div className="space-y-2 border-t border-slate-200 pt-3">
+                              <label
+                                htmlFor={`score-reason-${question.id}`}
+                                className="block text-sm font-medium"
+                              >
+                                {config.combination} 선호 이유
+                              </label>
+                              <textarea
+                                id={`score-reason-${question.id}`}
+                                value={entry.reason}
+                                onChange={(e) =>
+                                  onScoreReasonChange(question.id, {
+                                    reason: e.target.value,
+                                  })
+                                }
+                                placeholder={
+                                  config.placeholder ??
+                                  "가장 높은 점수를 준 디자인 안에 대한 이유를 입력해주세요"
+                                }
+                                maxLength={maxLength}
+                                rows={3}
+                                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                              />
+                              <p className="text-right text-xs text-muted">
+                                {entry.reason.length}/{maxLength}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

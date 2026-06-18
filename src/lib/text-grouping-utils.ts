@@ -121,6 +121,7 @@ export function getRequiredQuestionsForSurvey(
     for (const question of section.questions) {
       if (
         question.type === "score" ||
+        question.type === "score-reason" ||
         question.type === "ranking" ||
         question.type === "choice"
       ) {
