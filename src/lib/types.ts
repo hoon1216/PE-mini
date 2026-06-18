@@ -270,6 +270,7 @@ export interface ChoiceComparisonReasonGroup {
 export interface ChoiceComparisonSectionStats {
   sectionId: string;
   sectionTitle: string;
+  comparisonMode: "rank1" | "option";
   rankingQuestionTitle: string;
   rankBlocks: ChoiceComparisonRankBlock[];
   reasonTitle: string;

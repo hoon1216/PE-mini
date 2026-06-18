@@ -2,7 +2,6 @@ import { parseChoiceAnswer } from "./choice-utils";
 import { getPresentAgeGroups, parseRankingAnswer } from "./demographic-utils";
 import {
   findPrecedingRankingQuestion,
-  isRankGroupedTextSection,
   textQuestionAppliesToRankGroup,
 } from "./text-grouping-utils";
 import type {
@@ -14,6 +13,7 @@ import type {
   ChoiceComparisonSectionStats,
   DemographicFieldConfig,
   Question,
+  RankingQuestionConfig,
   Response,
   Section,
   SurveyDetail,
@@ -23,14 +23,8 @@ import { AGE_GROUP_LABELS } from "./types";
 export function isChoiceComparisonSection(
   section: Section & { questions: Question[] }
 ): boolean {
-  if (!isRankGroupedTextSection(section)) return false;
-
-  const ranking = findPrecedingRankingQuestion(section);
-  if (!ranking?.id) return false;
-
   const choiceCount = section.questions.filter((q) => q.type === "choice").length;
   const textCount = section.questions.filter((q) => q.type === "text").length;
-
   return choiceCount >= 1 && textCount >= 1;
 }
 
@@ -105,22 +99,22 @@ export function segmentMatchesResponse(
   }
 }
 
-function targetOptionForRank1(
+function targetOptionForGroup(
   config: ChoiceQuestionConfig,
-  rank1Name: string
+  groupName: string
 ): string {
-  const exact = config.options.find((option) => option === rank1Name);
+  const exact = config.options.find((option) => option === groupName);
   if (exact) return exact;
 
   const partial = config.options.find(
-    (option) => option.includes(rank1Name) || rank1Name.includes(option)
+    (option) => option.includes(groupName) || groupName.includes(option)
   );
   if (partial) return partial;
 
   return config.options[0] ?? "";
 }
 
-function computeChoiceComparisonCell(
+function computeRank1ModeCell(
   responses: Response[],
   answers: Answer[],
   questionId: string,
@@ -131,7 +125,7 @@ function computeChoiceComparisonCell(
 ): ChoiceComparisonCell {
   let answered = 0;
   let matched = 0;
-  const targetOption = targetOptionForRank1(config, rank1Name);
+  const targetOption = targetOptionForGroup(config, rank1Name);
 
   for (const response of responses) {
     if (!segmentMatchesResponse(response, segment)) continue;
@@ -143,6 +137,44 @@ function computeChoiceComparisonCell(
     );
     const parsed = parseRankingAnswer(rankAnswer?.value ?? "");
     if (parsed?.rank1 !== rank1Name) continue;
+
+    const choiceAnswer = answers.find(
+      (answer) =>
+        answer.responseId === response.id && answer.questionId === questionId
+    );
+    if (!choiceAnswer) continue;
+
+    const selected = parseChoiceAnswer(choiceAnswer.value, config);
+    if (selected.length === 0) continue;
+
+    answered += 1;
+    if (targetOption && selected.includes(targetOption)) {
+      matched += 1;
+    }
+  }
+
+  return {
+    count: matched,
+    answered,
+    percent:
+      answered > 0 ? Math.round((matched / answered) * 1000) / 10 : 0,
+  };
+}
+
+function computeOptionModeCell(
+  responses: Response[],
+  answers: Answer[],
+  questionId: string,
+  config: ChoiceQuestionConfig,
+  optionName: string,
+  segment: ComparisonSegment
+): ChoiceComparisonCell {
+  let answered = 0;
+  let matched = 0;
+  const targetOption = targetOptionForGroup(config, optionName);
+
+  for (const response of responses) {
+    if (!segmentMatchesResponse(response, segment)) continue;
 
     const choiceAnswer = answers.find(
       (answer) =>
@@ -185,6 +217,119 @@ function reasonSectionTitle(textQuestions: Question[]): string {
   return `${title} 선호 이유`;
 }
 
+function findReasonGroupingChoice(
+  choiceQuestions: Question[]
+): Question | null {
+  const byTitle = choiceQuestions.find(
+    (question) =>
+      question.title.includes("전체") || question.title.includes("디자인")
+  );
+  if (byTitle) return byTitle;
+
+  return choiceQuestions[choiceQuestions.length - 1] ?? null;
+}
+
+function resolveComparisonGroups(
+  choiceQuestions: Question[],
+  rankingQuestion: ReturnType<typeof findPrecedingRankingQuestion>
+): {
+  mode: ChoiceComparisonSectionStats["comparisonMode"];
+  groups: string[];
+  rankingQuestionId?: string;
+} {
+  if (rankingQuestion?.id) {
+    const config = rankingQuestion.config as RankingQuestionConfig;
+    return {
+      mode: "rank1",
+      groups: config.combinations,
+      rankingQuestionId: rankingQuestion.id,
+    };
+  }
+
+  const referenceChoice = choiceQuestions[0];
+  if (!referenceChoice) {
+    return { mode: "option", groups: [] };
+  }
+
+  return {
+    mode: "option",
+    groups: (referenceChoice.config as ChoiceQuestionConfig).options,
+  };
+}
+
+function buildReasonGroups(
+  mode: ChoiceComparisonSectionStats["comparisonMode"],
+  groups: string[],
+  rankingQuestion: ReturnType<typeof findPrecedingRankingQuestion>,
+  choiceQuestions: Question[],
+  textQuestions: Question[],
+  responses: Response[],
+  answers: Answer[]
+) {
+  if (mode === "rank1" && rankingQuestion?.id) {
+    return groups.map((rank1Name) => {
+      const responsesForRank: string[] = [];
+
+      for (const response of responses) {
+        const rankAnswer = answers.find(
+          (answer) =>
+            answer.responseId === response.id &&
+            answer.questionId === rankingQuestion.id
+        );
+        const parsed = parseRankingAnswer(rankAnswer?.value ?? "");
+        if (parsed?.rank1 !== rank1Name) continue;
+
+        for (const question of textQuestions) {
+          if (!textQuestionAppliesToRankGroup(question, rank1Name)) continue;
+
+          const textAnswer = answers.find(
+            (answer) =>
+              answer.responseId === response.id &&
+              answer.questionId === question.id
+          );
+          const value = textAnswer?.value?.trim();
+          if (value) responsesForRank.push(value);
+        }
+      }
+
+      return { rank1Name, responses: responsesForRank };
+    });
+  }
+
+  const groupingChoice = findReasonGroupingChoice(choiceQuestions);
+  if (!groupingChoice) {
+    return groups.map((groupName) => ({ rank1Name: groupName, responses: [] }));
+  }
+
+  const groupingConfig = groupingChoice.config as ChoiceQuestionConfig;
+
+  return groups.map((groupName) => {
+    const responsesForGroup: string[] = [];
+
+    for (const response of responses) {
+      const choiceAnswer = answers.find(
+        (answer) =>
+          answer.responseId === response.id &&
+          answer.questionId === groupingChoice.id
+      );
+      const selected = parseChoiceAnswer(choiceAnswer?.value ?? "", groupingConfig);
+      const targetOption = targetOptionForGroup(groupingConfig, groupName);
+      if (!targetOption || !selected.includes(targetOption)) continue;
+
+      for (const question of textQuestions) {
+        const textAnswer = answers.find(
+          (answer) =>
+            answer.responseId === response.id && answer.questionId === question.id
+        );
+        const value = textAnswer?.value?.trim();
+        if (value) responsesForGroup.push(value);
+      }
+    }
+
+    return { rank1Name: groupName, responses: responsesForGroup };
+  });
+}
+
 export function buildChoiceComparisonSectionStats(
   survey: SurveyDetail,
   section: Section & { questions: Question[] },
@@ -194,9 +339,6 @@ export function buildChoiceComparisonSectionStats(
   if (!isChoiceComparisonSection(section)) return null;
 
   const rankingQuestion = findPrecedingRankingQuestion(section);
-  if (!rankingQuestion?.id) return null;
-
-  const rankingConfig = rankingQuestion.config as { combinations: string[] };
   const choiceQuestions = section.questions
     .filter((question) => question.type === "choice")
     .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -204,72 +346,73 @@ export function buildChoiceComparisonSectionStats(
     .filter((question) => question.type === "text")
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  const segments = buildComparisonSegments(survey.demographicFields, responses);
-
-  const rankBlocks: ChoiceComparisonRankBlock[] = rankingConfig.combinations.map(
-    (rank1Name) => ({
-      rank1Name,
-      segments,
-      rows: choiceQuestions.map((question) => {
-        const config = question.config as ChoiceQuestionConfig;
-        const cells: Record<string, ChoiceComparisonCell> = {};
-
-        for (const segment of segments) {
-          cells[segment.key] = computeChoiceComparisonCell(
-            responses,
-            answers,
-            question.id,
-            config,
-            rankingQuestion.id!,
-            rank1Name,
-            segment
-          );
-        }
-
-        return {
-          questionId: question.id,
-          itemLabel: choiceQuestionLabel(question),
-          category: config.category?.trim() || null,
-          cells,
-        };
-      }),
-    })
+  const { mode, groups, rankingQuestionId } = resolveComparisonGroups(
+    choiceQuestions,
+    rankingQuestion
   );
 
-  const reasonGroups = rankingConfig.combinations.map((rank1Name) => {
-    const responsesForRank: string[] = [];
+  if (groups.length === 0) return null;
 
-    for (const response of responses) {
-      const rankAnswer = answers.find(
-        (answer) =>
-          answer.responseId === response.id &&
-          answer.questionId === rankingQuestion.id
-      );
-      const parsed = parseRankingAnswer(rankAnswer?.value ?? "");
-      if (parsed?.rank1 !== rank1Name) continue;
+  const segments = buildComparisonSegments(survey.demographicFields, responses);
 
-      for (const question of textQuestions) {
-        if (!textQuestionAppliesToRankGroup(question, rank1Name)) continue;
+  const rankBlocks: ChoiceComparisonRankBlock[] = groups.map((groupName) => ({
+    rank1Name: groupName,
+    segments,
+    rows: choiceQuestions.map((question) => {
+      const config = question.config as ChoiceQuestionConfig;
+      const cells: Record<string, ChoiceComparisonCell> = {};
 
-        const textAnswer = answers.find(
-          (answer) =>
-            answer.responseId === response.id && answer.questionId === question.id
-        );
-        const value = textAnswer?.value?.trim();
-        if (value) responsesForRank.push(value);
+      for (const segment of segments) {
+        cells[segment.key] =
+          mode === "rank1" && rankingQuestionId
+            ? computeRank1ModeCell(
+                responses,
+                answers,
+                question.id,
+                config,
+                rankingQuestionId,
+                groupName,
+                segment
+              )
+            : computeOptionModeCell(
+                responses,
+                answers,
+                question.id,
+                config,
+                groupName,
+                segment
+              );
       }
-    }
 
-    return { rank1Name, responses: responsesForRank };
-  });
+      return {
+        questionId: question.id,
+        itemLabel: choiceQuestionLabel(question),
+        category: config.category?.trim() || null,
+        cells,
+      };
+    }),
+  }));
+
+  const reasonGroups = buildReasonGroups(
+    mode,
+    groups,
+    rankingQuestion,
+    choiceQuestions,
+    textQuestions,
+    responses,
+    answers
+  );
 
   return {
     sectionId: section.id,
     sectionTitle: section.title,
+    comparisonMode: mode,
     rankingQuestionTitle:
-      rankingQuestion.title && rankingQuestion.title !== "순위 문항"
-        ? rankingQuestion.title
-        : "순위 선정",
+      mode === "rank1" && rankingQuestion?.title
+        ? rankingQuestion.title !== "순위 문항"
+          ? rankingQuestion.title
+          : "순위 선정"
+        : findReasonGroupingChoice(choiceQuestions)?.title ?? "선택 기준",
     rankBlocks,
     reasonTitle: reasonSectionTitle(textQuestions),
     reasonGroups,

@@ -72,6 +72,118 @@ describe("choice-comparison-stats", () => {
     expect(isChoiceComparisonSection(section)).toBe(true);
   });
 
+  it("detects sections with choice and text regardless of sort order", () => {
+    const section = {
+      ...createSurvey().sections[0],
+      sortOrder: 5,
+      questions: createSurvey().sections[0].questions.filter(
+        (question) => question.type !== "ranking"
+      ),
+    };
+    expect(isChoiceComparisonSection(section)).toBe(true);
+  });
+
+  it("builds option-mode comparison without ranking question", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-design",
+          surveyId: "survey-1",
+          title: "디자인 요소 선호",
+          description: null,
+          sortOrder: 4,
+          questions: [
+            {
+              id: "q-handle",
+              sectionId: "section-design",
+              title: "손잡이",
+              description: null,
+              type: "choice",
+              config: {
+                category: "요소",
+                options: ["선택지 A", "선택지 B"],
+                selectionMode: "single",
+              },
+              sortOrder: 0,
+            },
+            {
+              id: "q-overall",
+              sectionId: "section-design",
+              title: "전체 디자인",
+              description: null,
+              type: "choice",
+              config: {
+                options: ["선택지 A", "선택지 B"],
+                selectionMode: "single",
+              },
+              sortOrder: 1,
+            },
+            {
+              id: "q-reason",
+              sectionId: "section-design",
+              title: "전체 디자인 선택이유",
+              description: null,
+              type: "text",
+              config: { maxLength: 500 },
+              sortOrder: 2,
+            },
+          ],
+        },
+      ],
+    };
+
+    const section = survey.sections[0];
+    const responses: Response[] = [
+      {
+        id: "resp-1",
+        surveyId: "survey-1",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        participantName: "가가가",
+        gender: "male",
+        ageGroup: "40s",
+        demographicValues: {},
+      },
+    ];
+    const answers: Answer[] = [
+      {
+        id: "a1",
+        responseId: "resp-1",
+        questionId: "q-handle",
+        value: "선택지 B",
+      },
+      {
+        id: "a2",
+        responseId: "resp-1",
+        questionId: "q-overall",
+        value: "선택지 A",
+      },
+      {
+        id: "a3",
+        responseId: "resp-1",
+        questionId: "q-reason",
+        value: "균형잡혀 있고 심플함이 좋다",
+      },
+    ];
+
+    const stats = buildChoiceComparisonSectionStats(
+      survey,
+      section,
+      responses,
+      answers
+    );
+
+    expect(stats?.comparisonMode).toBe("option");
+    expect(stats?.rankBlocks).toHaveLength(2);
+    expect(stats?.rankBlocks[0].rank1Name).toBe("선택지 A");
+    expect(stats?.rankBlocks[0].rows[0].cells.total.percent).toBe(0);
+    expect(stats?.rankBlocks[1].rows[0].cells.total.percent).toBe(100);
+    expect(stats?.reasonGroups[0].responses).toEqual([
+      "균형잡혀 있고 심플함이 좋다",
+    ]);
+    expect(stats?.reasonGroups[1].responses).toEqual([]);
+  });
+
   it("builds comparison matrix and reason groups", () => {
     const survey = createSurvey();
     const section = survey.sections[0];
@@ -142,6 +254,7 @@ describe("choice-comparison-stats", () => {
     );
 
     expect(stats).not.toBeNull();
+    expect(stats?.comparisonMode).toBe("rank1");
     expect(stats?.rankBlocks).toHaveLength(2);
     expect(stats?.rankBlocks[0].rows[0].category).toBe("요소");
     expect(stats?.rankBlocks[0].rows[0].cells.total.percent).toBe(100);

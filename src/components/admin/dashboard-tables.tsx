@@ -473,9 +473,10 @@ export function ChoiceComparisonSectionTable({
           </tbody>
         </table>
         <p className="mt-2 text-xs text-muted">
-          각 셀은 해당 {section.rankingQuestionTitle} 1순위·구간 응답자 중
-          해당 안과 일치하는 선택지를 고른 비율(%)입니다. 마우스를 올리면
-          선택 인원/응답 인원을 볼 수 있습니다.
+          {section.comparisonMode === "rank1"
+            ? `각 셀은 해당 ${section.rankingQuestionTitle} 1순위·구간 응답자 중 해당 안과 일치하는 선택지를 고른 비율(%)입니다.`
+            : `각 셀은 해당 구간 응답자 중 ${section.rankingQuestionTitle} 문항의 해당 선택지를 고른 비율(%)입니다.`}{" "}
+          마우스를 올리면 선택 인원/응답 인원을 볼 수 있습니다.
         </p>
       </div>
 
