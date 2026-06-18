@@ -35,7 +35,7 @@ import {
 } from "./choice-comparison-stats";
 import { buildTextDemographicItems } from "./text-demographic-stats";
 import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
-import { buildScoreReasonCategories } from "./score-reason-stats";
+import { buildScoreCompareSectionStats } from "./score-compare-stats";
 import {
   findPrecedingRankingQuestion,
   isRankGroupedTextSection,
@@ -643,25 +643,14 @@ function buildSectionTables(
 
       tables.push({
         type: "score-compare",
-        data: {
-          sectionId: section.id,
-          sectionTitle: section.title,
-          scoreStats: buildScoreSectionStats(
-            section,
-            batch,
-            responses,
-            answers,
-            ageGroups,
-            survey.demographicFields[0] ?? null
-          ),
-          reasonCategories: buildScoreReasonCategories(
-            section,
-            batch,
-            responses,
-            answers,
-            survey.demographicFields
-          ),
-        },
+        data: buildScoreCompareSectionStats(
+          section,
+          batch,
+          responses,
+          answers,
+          survey.demographicFields,
+          ageGroups
+        ),
       });
       index += batch.length;
       continue;

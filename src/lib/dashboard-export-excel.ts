@@ -145,27 +145,58 @@ function writeScoreTable(
   writer.addBlank(2);
 }
 
-function writeScoreReasonTable(
+function writeScoreCompareTable(
   writer: SheetWriter,
   table: Extract<DashboardSectionTable, { type: "score-compare" }>
 ) {
-  writeScoreTable(writer, {
-    type: "score",
-    data: {
-      ...table.data.scoreStats,
-    },
+  const { scoreStats, sectionTitle, reasonCategories } = table.data;
+  const { segments, items } = scoreStats;
+
+  writer.addTitle(sectionTitle);
+  writer.addRows([
+    ["구분", "디자인 안", ...segments.map((segment) => `${segment.groupLabel} ${segment.label}`)],
+  ]);
+
+  const categorySpans: (number | null)[] = [];
+  let index = 0;
+  while (index < items.length) {
+    const category = items[index].category;
+    let span = 1;
+    while (
+      index + span < items.length &&
+      items[index + span].category === category
+    ) {
+      span += 1;
+    }
+    categorySpans[index] = span;
+    index += span;
+  }
+
+  items.forEach((item, itemIndex) => {
+    writer.addRows([
+      [
+        categorySpans[itemIndex] !== null ? item.category : "",
+        item.combination,
+        ...segments.map((segment) => formatNum(item.bySegment[segment.key])),
+      ],
+    ]);
   });
 
-  for (const category of table.data.reasonCategories) {
+  writer.addBlank();
+
+  for (const category of reasonCategories) {
     writer.addRows([[`${category.category} — 고득점 디자인 안 선호 이유`]]);
 
     for (const block of category.blocks) {
       writer.addRows([[block.winningCombination]]);
-      writer.addRows([block.segments.map((segment) => segment.label)]);
       writer.addRows([
-        block.segments.map((segment) => {
-          const responses = block.bySegment[segment.key] ?? [];
-          return responses.length > 0 ? responses.join("\n") : "-";
+        block.entries.map((entry) => {
+          const customLabels = table.data.demographicFields
+            .map((field) => entry.demographicValues[field.id] ?? "-")
+            .join(" / ");
+          const gender = entry.gender ? GENDER_LABELS[entry.gender] : "-";
+          const age = entry.ageGroup ? AGE_GROUP_LABELS[entry.ageGroup] : "-";
+          return `[${gender} / ${age} / ${customLabels}] ${entry.reason}`;
         }),
       ]);
     }
@@ -416,7 +447,7 @@ export async function buildDashboardExcelBuffer(
 
     for (const table of section.tables) {
       if (table.type === "score") writeScoreTable(writer, table);
-      if (table.type === "score-compare") writeScoreReasonTable(writer, table);
+      if (table.type === "score-compare") writeScoreCompareTable(writer, table);
       if (table.type === "ranking") writeRankingTable(writer, table);
       if (table.type === "text") writeTextTable(writer, table);
       if (table.type === "choice-comparison") {

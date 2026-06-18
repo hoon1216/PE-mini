@@ -21,6 +21,8 @@ import {
   dashboardTableTitle,
   type DashboardTableEntry,
 } from "@/lib/dashboard-layout";
+import { ScoreCompareReasonViewer } from "@/components/admin/score-compare-reason-viewer";
+import type { ScoreCompareScoreStats } from "@/lib/types";
 
 const thClass =
   "border border-slate-300 bg-slate-100 px-2 py-2 text-center text-xs font-semibold";
@@ -29,6 +31,94 @@ const tdClass = "border border-slate-300 px-2 py-2 text-center text-xs";
 function formatNum(value: number | null | undefined): string {
   if (value === null || value === undefined) return "-";
   return String(value);
+}
+
+function groupSegmentHeaderSpans(segments: ComparisonSegment[]) {
+  const groups: { label: string; count: number }[] = [];
+
+  for (const segment of segments) {
+    const last = groups[groups.length - 1];
+    if (last && last.label === segment.groupLabel) {
+      last.count += 1;
+      continue;
+    }
+    groups.push({ label: segment.groupLabel, count: 1 });
+  }
+
+  return groups;
+}
+
+function ScoreCompareScoreTable({
+  sectionTitle,
+  scoreStats,
+}: {
+  sectionTitle: string;
+  scoreStats: ScoreCompareScoreStats;
+}) {
+  const { segments, items } = scoreStats;
+  const segmentGroups = groupSegmentHeaderSpans(segments);
+  const categoryRowSpans = getCategoryRowSpans(
+    items.map((item) => ({ category: item.category }))
+  );
+  const totalColSpan = 2 + segments.length;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] border-collapse border border-slate-300 text-sm">
+        <thead>
+          <tr>
+            <th colSpan={totalColSpan} className={thClass}>
+              {sectionTitle}
+            </th>
+          </tr>
+          <tr>
+            <th rowSpan={2} className={thClass}>
+              구분
+            </th>
+            <th rowSpan={2} className={thClass}>
+              디자인 안
+            </th>
+            {segmentGroups.map((group) => (
+              <th
+                key={group.label}
+                colSpan={group.count}
+                className={thClass}
+              >
+                {group.label}
+              </th>
+            ))}
+          </tr>
+          <tr>
+            {segments.map((segment) => (
+              <th key={segment.key} className={thClass}>
+                {segment.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, index) => (
+            <tr key={item.itemId}>
+              {categoryRowSpans[index] !== null && (
+                <td
+                  rowSpan={categoryRowSpans[index]!}
+                  className={`${tdClass} align-middle font-medium`}
+                >
+                  {item.category}
+                </td>
+              )}
+              <td className={tdClass}>{item.combination}</td>
+              {segments.map((segment) => (
+                <td key={`${item.itemId}-${segment.key}`} className={tdClass}>
+                  {formatNum(item.bySegment[segment.key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export function DemographicTable({ data }: { data: DemographicStats }) {
@@ -798,86 +888,33 @@ export function ScoreCompareSectionTable({
 }: {
   section: ScoreCompareSectionStats;
 }) {
+  const hasReasonCategories = section.reasonCategories.some((category) =>
+    category.blocks.some((block) => block.entries.length > 0)
+  );
+
   return (
     <div className="space-y-6">
-      <ScoreSectionTable
-        section={section.scoreStats}
-        tableLabel={section.sectionTitle}
+      <ScoreCompareScoreTable
+        sectionTitle={section.sectionTitle}
+        scoreStats={section.scoreStats}
       />
 
-      {section.reasonCategories.map((category) => (
-        <div key={category.category} className="space-y-4">
-          <p className="text-sm font-medium">
-            {category.category} — 고득점 디자인 안 선호 이유
-          </p>
-          {category.blocks.length === 0 ? (
-            <p className="text-sm text-muted">제출된 이유가 없습니다.</p>
-          ) : (
-            category.blocks.map((block) => {
-              const segmentGroups = groupComparisonSegments(block.segments);
-
-              return (
-                <div
-                  key={`${category.category}-${block.winningCombination}`}
-                  className="overflow-x-auto"
-                >
-                  <h4 className="mb-2 text-base font-semibold">
-                    {block.winningCombination}
-                  </h4>
-                  <table className="w-full min-w-[720px] border-collapse border border-slate-300 text-sm">
-                    <thead>
-                      <tr>
-                        {segmentGroups.map((group) => (
-                          <th
-                            key={group.label}
-                            colSpan={group.segments.length}
-                            className={thClass}
-                          >
-                            {group.label}
-                          </th>
-                        ))}
-                      </tr>
-                      <tr>
-                        {block.segments.map((segment) => (
-                          <th key={segment.key} className={thClass}>
-                            {segment.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        {block.segments.map((segment) => {
-                          const responses = block.bySegment[segment.key] ?? [];
-
-                          return (
-                            <td
-                              key={segment.key}
-                              className={`${tdClass} text-left align-top`}
-                            >
-                              {responses.length === 0 ? (
-                                <span className="text-muted">-</span>
-                              ) : (
-                                <div className="space-y-1">
-                                  {responses.map((response, index) => (
-                                    <p key={`${segment.key}-${index}`}>
-                                      {response}
-                                    </p>
-                                  ))}
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })
-          )}
+      {hasReasonCategories && (
+        <div className="space-y-4">
+          {section.reasonCategories.map((category) => (
+            <div key={category.category} className="space-y-4">
+              <p className="text-sm font-medium">
+                {category.category} — 고득점 디자인 안 선호 이유
+              </p>
+              <ScoreCompareReasonViewer
+                categories={[category]}
+                demographicFields={section.demographicFields}
+                ageGroups={section.ageGroups}
+              />
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

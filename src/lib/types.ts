@@ -339,10 +339,28 @@ export interface ChoiceComparisonSectionStats {
   reasonGroups: ChoiceComparisonReasonGroup[];
 }
 
+export interface ScoreCompareItemStats {
+  itemId: string;
+  category: string;
+  combination: string;
+  bySegment: Record<string, number | null>;
+}
+
+export interface ScoreCompareScoreStats {
+  segments: ComparisonSegment[];
+  items: ScoreCompareItemStats[];
+}
+
+export interface ScoreCompareReasonEntry {
+  reason: string;
+  gender: Gender | null;
+  ageGroup: AgeGroup | null;
+  demographicValues: Record<string, string>;
+}
+
 export interface ScoreReasonBlockStats {
   winningCombination: string;
-  segments: ComparisonSegment[];
-  bySegment: Record<string, string[]>;
+  entries: ScoreCompareReasonEntry[];
 }
 
 export interface ScoreReasonCategoryStats {
@@ -353,8 +371,10 @@ export interface ScoreReasonCategoryStats {
 export interface ScoreCompareSectionStats {
   sectionId: string;
   sectionTitle: string;
-  scoreStats: ScoreSectionStats;
+  scoreStats: ScoreCompareScoreStats;
   reasonCategories: ScoreReasonCategoryStats[];
+  demographicFields: DemographicFieldConfig[];
+  ageGroups: AgeGroup[];
 }
 
 export type DashboardSectionTable =
