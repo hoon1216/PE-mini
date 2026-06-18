@@ -13,6 +13,10 @@ export function demographicKey(age: AgeGroup, gender: Gender): string {
   return `${age}-${gender}`;
 }
 
+export function scoreCustomFieldKey(fieldId: string, option: string): string {
+  return `custom-${fieldId}-${option}`;
+}
+
 export function getPresentAgeGroups(
   responses: { ageGroup: AgeGroup | null }[]
 ): AgeGroup[] {

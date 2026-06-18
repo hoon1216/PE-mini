@@ -11,7 +11,7 @@ import type {
   ComparisonSegment,
 } from "@/lib/types";
 import { AGE_GROUP_LABELS, GENDER_LABELS } from "@/lib/types";
-import { demographicKey } from "@/lib/demographic-utils";
+import { demographicKey, scoreCustomFieldKey } from "@/lib/demographic-utils";
 import {
   getCategoryRowSpans,
 } from "@/lib/choice-comparison-stats";
@@ -154,6 +154,25 @@ function ScoreMetricSubHeaders({ ageGroups }: { ageGroups: AgeGroup[] }) {
   );
 }
 
+function CustomFieldMetricSubHeaders({
+  options,
+}: {
+  options: string[];
+}) {
+  return (
+    <>
+      {options.flatMap((option) => [
+        <th key={`${option}-score`} className={thClass}>
+          점수
+        </th>,
+        <th key={`${option}-rank`} className={thClass}>
+          순위
+        </th>,
+      ])}
+    </>
+  );
+}
+
 export function ScoreSectionTable({
   section,
   tableLabel,
@@ -161,17 +180,19 @@ export function ScoreSectionTable({
   section: ScoreSectionStats;
   tableLabel?: string;
 }) {
-  const { ageGroups } = section;
+  const { ageGroups, customField } = section;
+  const customColSpan = customField ? customField.options.length * 2 : 0;
   const demoColSpan = ageGroups.length * 4;
   const categoryRowSpans = getCategoryRowSpans(section.items);
   const headerLabel = tableLabel ?? section.sectionTitle;
+  const totalColSpan = 4 + customColSpan + demoColSpan;
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] border-collapse border border-slate-300 text-sm">
         <thead>
           <tr>
-            <th colSpan={4 + demoColSpan} className={thClass}>
+            <th colSpan={totalColSpan} className={thClass}>
               {headerLabel}
             </th>
           </tr>
@@ -180,11 +201,16 @@ export function ScoreSectionTable({
               구분
             </th>
             <th rowSpan={3} className={thClass}>
-              조합
+              디자인 안
             </th>
             <th colSpan={2} className={thClass}>
               평균
             </th>
+            {customField && (
+              <th colSpan={customColSpan} className={thClass}>
+                {customField.label}
+              </th>
+            )}
             {ageGroups.length > 0 && (
               <th colSpan={demoColSpan} className={thClass}>
                 연령대
@@ -198,6 +224,11 @@ export function ScoreSectionTable({
             <th rowSpan={2} className={thClass}>
               순위
             </th>
+            {customField?.options.map((option) => (
+              <th key={option} colSpan={2} className={thClass}>
+                {option}
+              </th>
+            ))}
             <DemographicHeaders ageGroups={ageGroups} />
           </tr>
           <tr>
@@ -206,6 +237,9 @@ export function ScoreSectionTable({
           <tr>
             <th className={thClass} colSpan={2} />
             <th className={thClass} colSpan={2} />
+            {customField && (
+              <CustomFieldMetricSubHeaders options={customField.options} />
+            )}
             <ScoreMetricSubHeaders ageGroups={ageGroups} />
           </tr>
         </thead>
@@ -223,6 +257,26 @@ export function ScoreSectionTable({
               <td className={tdClass}>{item.combination}</td>
               <td className={tdClass}>{formatNum(item.averageScore)}</td>
               <td className={tdClass}>{formatNum(item.averageRank)}</td>
+              {customField?.options.map((option) => {
+                const cell =
+                  item.byCustomField[
+                    scoreCustomFieldKey(customField.fieldId, option)
+                  ];
+                return [
+                  <td
+                    key={`${item.itemId}-custom-${option}-s`}
+                    className={tdClass}
+                  >
+                    {formatNum(cell?.score)}
+                  </td>,
+                  <td
+                    key={`${item.itemId}-custom-${option}-r`}
+                    className={tdClass}
+                  >
+                    {formatNum(cell?.rank)}
+                  </td>,
+                ];
+              })}
               {ageGroups.map((age) =>
                 (["male", "female"] as Gender[]).flatMap((gender) => {
                   const cell = item.byDemographic[demographicKey(age, gender)];

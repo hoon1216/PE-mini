@@ -148,12 +148,20 @@ export interface ScoreItemStats {
   averageScore: number | null;
   averageRank: number | null;
   byDemographic: Record<string, DemographicCell>;
+  byCustomField: Record<string, DemographicCell>;
+}
+
+export interface ScoreCustomFieldStats {
+  fieldId: string;
+  label: string;
+  options: string[];
 }
 
 export interface ScoreSectionStats {
   sectionId: string;
   sectionTitle: string;
   ageGroups: AgeGroup[];
+  customField: ScoreCustomFieldStats | null;
   items: ScoreItemStats[];
 }
 

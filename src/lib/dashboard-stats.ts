@@ -30,6 +30,7 @@ import {
   demographicKey,
   getPresentAgeGroups,
   parseRankingAnswer,
+  scoreCustomFieldKey,
 } from "./demographic-utils";
 import {
   buildChoiceComparisonSectionStats,
@@ -129,12 +130,37 @@ function scoreForItem(
   return Number.isFinite(score) ? score : null;
 }
 
+function buildScoreCellsForResponses(
+  itemId: string,
+  items: { id: string }[],
+  filtered: Response[],
+  answers: Answer[]
+): DemographicCell {
+  const scores = filtered
+    .map((response) => scoreForItem(answers, response.id, itemId))
+    .filter((score): score is number => score !== null);
+
+  const demoItems = items.map((entry) => ({
+    id: entry.id,
+    scores: filtered
+      .map((response) => scoreForItem(answers, response.id, entry.id))
+      .filter((score): score is number => score !== null),
+  }));
+  const demoRanks = computeRanks(demoItems);
+
+  return {
+    score: average(scores),
+    rank: demoRanks.get(itemId) ?? null,
+  };
+}
+
 function buildScoreSectionStats(
   section: Section,
   scoreQuestions: Question[],
   responses: Response[],
   answers: Answer[],
-  ageGroups: AgeGroup[]
+  ageGroups: AgeGroup[],
+  customField: DemographicFieldConfig | null
 ): ScoreSectionStats {
   const items = scoreQuestions.map((question) => {
     const config = question.config as ScoreQuestionConfig;
@@ -155,29 +181,32 @@ function buildScoreSectionStats(
 
   const itemStats = items.map((item) => {
     const byDemographic: Record<string, DemographicCell> = {};
+    const byCustomField: Record<string, DemographicCell> = {};
 
     for (const age of ageGroups) {
       for (const gender of ["male", "female"] as Gender[]) {
         const key = demographicKey(age, gender);
         const filtered = responses.filter(
-          (r) => r.ageGroup === age && r.gender === gender
+          (response) =>
+            response.ageGroup === age && response.gender === gender
         );
-        const scores = filtered
-          .map((r) => scoreForItem(answers, r.id, item.id))
-          .filter((s): s is number => s !== null);
+        byDemographic[key] = buildScoreCellsForResponses(
+          item.id,
+          items,
+          filtered,
+          answers
+        );
+      }
+    }
 
-        const demoItems = items.map((it) => ({
-          id: it.id,
-          scores: filtered
-            .map((r) => scoreForItem(answers, r.id, it.id))
-            .filter((s): s is number => s !== null),
-        }));
-        const demoRanks = computeRanks(demoItems);
-
-        byDemographic[key] = {
-          score: average(scores),
-          rank: demoRanks.get(item.id) ?? null,
-        };
+    if (customField) {
+      for (const option of customField.options) {
+        const filtered = responses.filter(
+          (response) =>
+            response.demographicValues[customField.id] === option
+        );
+        byCustomField[scoreCustomFieldKey(customField.id, option)] =
+          buildScoreCellsForResponses(item.id, items, filtered, answers);
       }
     }
 
@@ -186,10 +215,11 @@ function buildScoreSectionStats(
       category: item.category,
       combination: item.combination,
       averageScore: average(
-        overallScores.find((s) => s.id === item.id)?.scores ?? []
+        overallScores.find((scoreItem) => scoreItem.id === item.id)?.scores ?? []
       ),
       averageRank: overallRanks.get(item.id) ?? null,
       byDemographic,
+      byCustomField,
     };
   });
 
@@ -197,6 +227,13 @@ function buildScoreSectionStats(
     sectionId: section.id,
     sectionTitle: section.title,
     ageGroups,
+    customField: customField
+      ? {
+          fieldId: customField.id,
+          label: customField.label,
+          options: customField.options,
+        }
+      : null,
     items: itemStats,
   };
 }
@@ -579,7 +616,8 @@ export function computeDashboardStats(
           scoreQuestions,
           responses,
           answers,
-          ageGroups
+          ageGroups,
+          survey.demographicFields[0] ?? null
         ),
       });
     }

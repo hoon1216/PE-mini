@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { demographicKey } from "./demographic-utils";
+import { demographicKey, scoreCustomFieldKey } from "./demographic-utils";
 import type {
   DashboardSectionTable,
   DashboardStats,
@@ -79,16 +79,29 @@ function writeScoreTable(
 ) {
   const section = table.data;
   const ageGroups = section.ageGroups;
+  const customField = section.customField;
   const demoHeaders = ageGroups.flatMap((age) => [
     `${AGE_GROUP_LABELS[age]} 남`,
     `${AGE_GROUP_LABELS[age]} 남 순위`,
     `${AGE_GROUP_LABELS[age]} 여`,
     `${AGE_GROUP_LABELS[age]} 여 순위`,
   ]);
+  const customHeaders =
+    customField?.options.flatMap((option) => [
+      `${customField.label} ${option}`,
+      `${customField.label} ${option} 순위`,
+    ]) ?? [];
 
   writer.addTitle(`점수 부과형 — ${section.sectionTitle}`);
   writer.addRows([
-    ["구분", "조합", "평균 점수", "평균 순위", ...demoHeaders],
+    [
+      "구분",
+      "디자인 안",
+      "평균 점수",
+      "평균 순위",
+      ...customHeaders,
+      ...demoHeaders,
+    ],
   ]);
 
   const categorySpans: (number | null)[] = [];
@@ -107,6 +120,12 @@ function writeScoreTable(
   }
 
   section.items.forEach((item, itemIndex) => {
+    const customCells =
+      customField?.options.flatMap((option) => {
+        const cell =
+          item.byCustomField[scoreCustomFieldKey(customField.fieldId, option)];
+        return [formatNum(cell?.score), formatNum(cell?.rank)];
+      }) ?? [];
     const demoCells = ageGroups.flatMap((age) =>
       (["male", "female"] as Gender[]).flatMap((gender) => {
         const cell = item.byDemographic[demographicKey(age, gender)];
@@ -120,6 +139,7 @@ function writeScoreTable(
         item.combination,
         formatNum(item.averageScore),
         formatNum(item.averageRank),
+        ...customCells,
         ...demoCells,
       ],
     ]);
