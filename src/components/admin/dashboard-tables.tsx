@@ -4,13 +4,17 @@ import type {
   DemographicStats,
   Gender,
   RankingSectionStats,
-  ScoreItemStats,
   ScoreSectionStats,
   TextSectionStats,
   ChoiceSectionStats,
+  ChoiceComparisonSectionStats,
+  ComparisonSegment,
 } from "@/lib/types";
 import { AGE_GROUP_LABELS, GENDER_LABELS } from "@/lib/types";
 import { demographicKey } from "@/lib/demographic-utils";
+import {
+  getCategoryRowSpans,
+} from "@/lib/choice-comparison-stats";
 
 const thClass =
   "border border-slate-300 bg-slate-100 px-2 py-2 text-center text-xs font-semibold";
@@ -19,28 +23,6 @@ const tdClass = "border border-slate-300 px-2 py-2 text-center text-xs";
 function formatNum(value: number | null | undefined): string {
   if (value === null || value === undefined) return "-";
   return String(value);
-}
-
-function getCategoryRowSpans(items: ScoreItemStats[]): (number | null)[] {
-  const spans: (number | null)[] = new Array(items.length).fill(null);
-  let index = 0;
-
-  while (index < items.length) {
-    const category = items[index].category;
-    let span = 1;
-
-    while (
-      index + span < items.length &&
-      items[index + span].category === category
-    ) {
-      span += 1;
-    }
-
-    spans[index] = span;
-    index += span;
-  }
-
-  return spans;
 }
 
 export function DemographicTable({ data }: { data: DemographicStats }) {
@@ -361,6 +343,186 @@ export function RankingSectionTable({
   );
 }
 
+function formatComparisonCell(cell: {
+  count: number;
+  answered: number;
+  percent: number;
+}): string {
+  if (cell.answered === 0) return "-";
+  return `${cell.percent}%`;
+}
+
+function groupComparisonSegments(segments: ComparisonSegment[]) {
+  const groups: { label: string; segments: ComparisonSegment[] }[] = [];
+
+  for (const segment of segments) {
+    const last = groups[groups.length - 1];
+    if (last && last.label === segment.groupLabel) {
+      last.segments.push(segment);
+      continue;
+    }
+    groups.push({ label: segment.groupLabel, segments: [segment] });
+  }
+
+  return groups;
+}
+
+export function ChoiceComparisonSectionTable({
+  section,
+}: {
+  section: ChoiceComparisonSectionStats;
+}) {
+  const segments =
+    section.rankBlocks[0]?.segments ?? [];
+  const segmentGroups = groupComparisonSegments(segments);
+  const rows = section.rankBlocks[0]?.rows ?? [];
+  const categoryRowSpans = getCategoryRowSpans(rows);
+  const rankColSpan = segments.length;
+  const leftColSpan = 2;
+
+  return (
+    <div className="space-y-6">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[960px] border-collapse border border-slate-300 text-sm">
+          <thead>
+            <tr>
+              <th
+                colSpan={leftColSpan + rankColSpan * section.rankBlocks.length}
+                className={thClass}
+              >
+                객관식 평가 비교
+              </th>
+            </tr>
+            <tr>
+              <th rowSpan={3} className={thClass}>
+                구분
+              </th>
+              <th rowSpan={3} className={thClass}>
+                평가 항목
+              </th>
+              {section.rankBlocks.map((block) => (
+                <th key={block.rank1Name} colSpan={rankColSpan} className={thClass}>
+                  {block.rank1Name}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {section.rankBlocks.map((block) =>
+                segmentGroups.map((group) => (
+                  <th
+                    key={`${block.rank1Name}-${group.label}`}
+                    colSpan={group.segments.length}
+                    className={thClass}
+                  >
+                    {group.label}
+                  </th>
+                ))
+              )}
+            </tr>
+            <tr>
+              {section.rankBlocks.map((block) =>
+                segments.map((segment) => (
+                  <th
+                    key={`${block.rank1Name}-${segment.key}`}
+                    className={thClass}
+                  >
+                    {segment.label}
+                  </th>
+                ))
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={row.questionId}>
+                {categoryRowSpans[index] !== null && (
+                  <td
+                    rowSpan={categoryRowSpans[index]!}
+                    className={`${tdClass} align-middle font-medium`}
+                  >
+                    {row.category ?? ""}
+                  </td>
+                )}
+                <td className={`${tdClass} text-left`}>{row.itemLabel}</td>
+                {section.rankBlocks.map((block) => {
+                  const blockRow = block.rows.find(
+                    (item) => item.questionId === row.questionId
+                  );
+                  return segments.map((segment) => (
+                    <td
+                      key={`${block.rank1Name}-${row.questionId}-${segment.key}`}
+                      className={tdClass}
+                      title={
+                        blockRow?.cells[segment.key]?.answered
+                          ? `${blockRow.cells[segment.key].count}/${blockRow.cells[segment.key].answered}명`
+                          : undefined
+                      }
+                    >
+                      {formatComparisonCell(
+                        blockRow?.cells[segment.key] ?? {
+                          count: 0,
+                          answered: 0,
+                          percent: 0,
+                        }
+                      )}
+                    </td>
+                  ));
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-muted">
+          각 셀은 해당 {section.rankingQuestionTitle} 1순위·구간 응답자 중
+          해당 안과 일치하는 선택지를 고른 비율(%)입니다. 마우스를 올리면
+          선택 인원/응답 인원을 볼 수 있습니다.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
+          <thead>
+            <tr>
+              <th colSpan={2} className={thClass}>
+                {section.reasonTitle}
+              </th>
+            </tr>
+            <tr>
+              <th className={`${thClass} w-28`}>안</th>
+              <th className={thClass}>선호 이유</th>
+            </tr>
+          </thead>
+          <tbody>
+            {section.reasonGroups.map((group) => (
+              <tr key={group.rank1Name}>
+                <td className={`${tdClass} align-top font-medium`}>
+                  {group.rank1Name}
+                </td>
+                <td className={`${tdClass} text-left align-top`}>
+                  {group.responses.length === 0 ? (
+                    <span className="text-muted">답변 없음</span>
+                  ) : (
+                    <div className="space-y-2">
+                      {group.responses.map((response, index) => (
+                        <p
+                          key={`${group.rank1Name}-${index}`}
+                          className="border-b border-slate-200 pb-2 last:border-b-0 last:pb-0"
+                        >
+                          {response}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function rankingTableLabel(questionTitle: string): string {
   return questionTitle && questionTitle !== "순위 문항"
     ? questionTitle
@@ -618,6 +780,11 @@ export function DashboardSectionTables({ stats }: { stats: DashboardStats }) {
                 ) : table.type === "text" ? (
                   <TextSectionTable
                     key={`${group.sectionId}-text`}
+                    section={table.data}
+                  />
+                ) : table.type === "choice-comparison" ? (
+                  <ChoiceComparisonSectionTable
+                    key={`${group.sectionId}-choice-comparison`}
                     section={table.data}
                   />
                 ) : (

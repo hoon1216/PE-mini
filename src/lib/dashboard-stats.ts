@@ -32,6 +32,9 @@ import {
   parseRankingAnswer,
 } from "./demographic-utils";
 import {
+  buildChoiceComparisonSectionStats,
+} from "./choice-comparison-stats";
+import {
   findPrecedingRankingQuestion,
   isRankGroupedTextSection,
   textQuestionAppliesToRankGroup,
@@ -594,49 +597,63 @@ export function computeDashboardStats(
       });
     }
 
-    const textQuestions = section.questions.filter((q) => q.type === "text");
-    if (textQuestions.length > 0) {
-      const precedingRanking = findPrecedingRankingQuestion(section);
-      const rankingQuestion =
-        precedingRanking?.id && precedingRanking.title !== undefined
-          ? (precedingRanking as GroupingQuestion & {
-              id: string;
-              title: string;
-            })
-          : null;
+    const comparisonStats = buildChoiceComparisonSectionStats(
+      survey,
+      section,
+      responses,
+      answers
+    );
 
+    if (comparisonStats) {
       tables.push({
-        type: "text",
-        data: buildTextSectionStats(
-          section,
-          textQuestions,
-          rankingQuestion,
-          responses,
-          answers
-        ),
+        type: "choice-comparison",
+        data: comparisonStats,
       });
-    }
+    } else {
+      const textQuestions = section.questions.filter((q) => q.type === "text");
+      if (textQuestions.length > 0) {
+        const precedingRanking = findPrecedingRankingQuestion(section);
+        const rankingQuestion =
+          precedingRanking?.id && precedingRanking.title !== undefined
+            ? (precedingRanking as GroupingQuestion & {
+                id: string;
+                title: string;
+              })
+            : null;
 
-    for (const question of section.questions.filter((q) => q.type === "choice")) {
-      const precedingRanking = findPrecedingRankingQuestion(section);
-      const rankingQuestion =
-        precedingRanking?.id && precedingRanking.title !== undefined
-          ? (precedingRanking as GroupingQuestion & {
-              id: string;
-              title: string;
-            })
-          : null;
+        tables.push({
+          type: "text",
+          data: buildTextSectionStats(
+            section,
+            textQuestions,
+            rankingQuestion,
+            responses,
+            answers
+          ),
+        });
+      }
 
-      tables.push({
-        type: "choice",
-        data: buildChoiceSectionStats(
-          section,
-          question,
-          rankingQuestion,
-          responses,
-          answers
-        ),
-      });
+      for (const question of section.questions.filter((q) => q.type === "choice")) {
+        const precedingRanking = findPrecedingRankingQuestion(section);
+        const rankingQuestion =
+          precedingRanking?.id && precedingRanking.title !== undefined
+            ? (precedingRanking as GroupingQuestion & {
+                id: string;
+                title: string;
+              })
+            : null;
+
+        tables.push({
+          type: "choice",
+          data: buildChoiceSectionStats(
+            section,
+            question,
+            rankingQuestion,
+            responses,
+            answers
+          ),
+        });
+      }
     }
 
     return {

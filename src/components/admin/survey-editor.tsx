@@ -1031,6 +1031,23 @@ export function SurveyEditor({
                   {choiceConfig && (
                     <div className="mt-3 space-y-2">
                       <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          대시보드 구분 (선택)
+                        </label>
+                        <Input
+                          value={choiceConfig.category ?? ""}
+                          onChange={(e) =>
+                            updateChoiceQuestion(sectionIndex, questionIndex, {
+                              category: e.target.value || undefined,
+                            })
+                          }
+                          placeholder="예: 요소"
+                        />
+                        <p className="mt-1 text-xs text-muted">
+                          같은 구분명을 쓰면 대시보드에서 묶어 표시합니다.
+                        </p>
+                      </div>
+                      <div>
                         <p className="mb-2 text-sm font-medium">선택 방식</p>
                         <div className="flex flex-wrap gap-4">
                           <label className="flex cursor-pointer items-center gap-2 text-sm">

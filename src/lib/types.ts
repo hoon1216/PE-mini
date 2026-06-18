@@ -28,6 +28,8 @@ export type ChoiceSelectionMode = "single" | "multiple";
 
 export interface ChoiceQuestionConfig {
   options: string[];
+  /** Dashboard row grouping (e.g. 요소). Same value merges the left header cell. */
+  category?: string;
   /** single = 1개 선택, multiple = 복수 선택 */
   selectionMode?: ChoiceSelectionMode;
   /** @deprecated use selectionMode — kept for legacy data */
@@ -216,11 +218,70 @@ export interface ChoiceSectionStats {
   groups: ChoiceGroupStats[];
 }
 
+export type ComparisonSegment =
+  | { type: "total"; key: string; groupLabel: string; label: string }
+  | {
+      type: "custom";
+      key: string;
+      groupLabel: string;
+      label: string;
+      fieldId: string;
+      option: string;
+    }
+  | {
+      type: "gender";
+      key: string;
+      groupLabel: string;
+      label: string;
+      gender: Gender;
+    }
+  | {
+      type: "age";
+      key: string;
+      groupLabel: string;
+      label: string;
+      ageGroup: AgeGroup;
+    };
+
+export interface ChoiceComparisonCell {
+  count: number;
+  answered: number;
+  percent: number;
+}
+
+export interface ChoiceComparisonRowStats {
+  questionId: string;
+  itemLabel: string;
+  category: string | null;
+  cells: Record<string, ChoiceComparisonCell>;
+}
+
+export interface ChoiceComparisonRankBlock {
+  rank1Name: string;
+  segments: ComparisonSegment[];
+  rows: ChoiceComparisonRowStats[];
+}
+
+export interface ChoiceComparisonReasonGroup {
+  rank1Name: string;
+  responses: string[];
+}
+
+export interface ChoiceComparisonSectionStats {
+  sectionId: string;
+  sectionTitle: string;
+  rankingQuestionTitle: string;
+  rankBlocks: ChoiceComparisonRankBlock[];
+  reasonTitle: string;
+  reasonGroups: ChoiceComparisonReasonGroup[];
+}
+
 export type DashboardSectionTable =
   | { type: "score"; data: ScoreSectionStats }
   | { type: "ranking"; data: RankingSectionStats }
   | { type: "text"; data: TextSectionStats }
-  | { type: "choice"; data: ChoiceSectionStats };
+  | { type: "choice"; data: ChoiceSectionStats }
+  | { type: "choice-comparison"; data: ChoiceComparisonSectionStats };
 
 export interface DashboardSectionGroup {
   sectionId: string;

@@ -237,6 +237,84 @@ function writeTextTable(
   writer.addBlank(2);
 }
 
+function writeChoiceComparisonTable(
+  writer: SheetWriter,
+  table: Extract<DashboardSectionTable, { type: "choice-comparison" }>
+) {
+  const section = table.data;
+  writer.addTitle(`객관식 평가 비교 — ${section.sectionTitle}`);
+
+  const segments = section.rankBlocks[0]?.segments ?? [];
+  const rows = section.rankBlocks[0]?.rows ?? [];
+
+  const headerGroupRow = section.rankBlocks.flatMap(() => {
+    const groups: string[] = [];
+    let current = "";
+    for (const segment of segments) {
+      if (segment.groupLabel !== current) {
+        groups.push(segment.groupLabel);
+        current = segment.groupLabel;
+      } else {
+        groups.push("");
+      }
+    }
+    return groups;
+  });
+
+  writer.addRows([
+    [
+      "구분",
+      "평가 항목",
+      ...section.rankBlocks.flatMap((block) => [block.rank1Name, ...segments.slice(1).map(() => "")]),
+    ],
+    [
+      "",
+      "",
+      ...headerGroupRow,
+    ],
+    [
+      "",
+      "",
+      ...section.rankBlocks.flatMap(() =>
+        segments.map((segment) => segment.label)
+      ),
+    ],
+  ]);
+
+  for (const row of rows) {
+    writer.addRows([
+      [
+        row.category ?? "",
+        row.itemLabel,
+        ...section.rankBlocks.flatMap((block) => {
+          const blockRow = block.rows.find(
+            (item) => item.questionId === row.questionId
+          );
+          return segments.map((segment) => {
+            const cell = blockRow?.cells[segment.key];
+            if (!cell || cell.answered === 0) return "-";
+            return `${cell.percent}%`;
+          });
+        }),
+      ],
+    ]);
+  }
+
+  writer.addBlank();
+  writer.addTitle(section.reasonTitle);
+  writer.addRows([["안", "선호 이유"]]);
+  for (const group of section.reasonGroups) {
+    if (group.responses.length === 0) {
+      writer.addRows([[group.rank1Name, "답변 없음"]]);
+      continue;
+    }
+    for (const [index, response] of group.responses.entries()) {
+      writer.addRows([[index === 0 ? group.rank1Name : "", response]]);
+    }
+  }
+  writer.addBlank(2);
+}
+
 function writeChoiceTable(
   writer: SheetWriter,
   table: Extract<DashboardSectionTable, { type: "choice" }>
@@ -296,6 +374,9 @@ export async function buildDashboardExcelBuffer(
       if (table.type === "score") writeScoreTable(writer, table);
       if (table.type === "ranking") writeRankingTable(writer, table);
       if (table.type === "text") writeTextTable(writer, table);
+      if (table.type === "choice-comparison") {
+        writeChoiceComparisonTable(writer, table);
+      }
       if (table.type === "choice") writeChoiceTable(writer, table);
     }
   }
