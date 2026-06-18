@@ -5,6 +5,7 @@ import {
   isChoiceComparisonSection,
   normalizeChoiceCategory,
 } from "./choice-comparison-stats";
+import { demographicKey } from "./demographic-utils";
 import type { Answer, Response, SurveyDetail } from "./types";
 
 function createSurvey(): SurveyDetail {
@@ -23,6 +24,33 @@ function createSurvey(): SurveyDetail {
       },
     ],
     sections: [
+      {
+        id: "section-score",
+        surveyId: "survey-1",
+        title: "최종 디자인",
+        description: null,
+        sortOrder: 0,
+        questions: [
+          {
+            id: "q-final-a",
+            sectionId: "section-score",
+            title: "A안",
+            description: null,
+            type: "score",
+            config: { category: "최종 디자인", combination: "A안" },
+            sortOrder: 0,
+          },
+          {
+            id: "q-final-b",
+            sectionId: "section-score",
+            title: "B안",
+            description: null,
+            type: "score",
+            config: { category: "최종 디자인", combination: "B안" },
+            sortOrder: 1,
+          },
+        ],
+      },
       {
         id: "section-1",
         surveyId: "survey-1",
@@ -76,15 +104,15 @@ describe("choice-comparison-stats", () => {
   });
 
   it("detects rank-grouped sections with choice and text", () => {
-    const section = createSurvey().sections[0];
+    const section = createSurvey().sections[1];
     expect(isChoiceComparisonSection(section)).toBe(true);
   });
 
   it("detects sections with choice and text regardless of sort order", () => {
     const section = {
-      ...createSurvey().sections[0],
+      ...createSurvey().sections[1],
       sortOrder: 5,
-      questions: createSurvey().sections[0].questions.filter(
+      questions: createSurvey().sections[1].questions.filter(
         (question) => question.type !== "ranking"
       ),
     };
@@ -186,15 +214,19 @@ describe("choice-comparison-stats", () => {
     expect(stats?.rankBlocks[0].rank1Name).toBe("선택지 A");
     expect(stats?.rankBlocks[0].rows[0].cells.total.percent).toBe(0);
     expect(stats?.rankBlocks[1].rows[0].cells.total.percent).toBe(100);
-    expect(stats?.reasonGroups[0].responses).toEqual([
-      "균형잡혀 있고 심플함이 좋다",
+    expect(stats?.reasonGroups).toEqual([
+      { rank1Name: "전체", responses: ["균형잡혀 있고 심플함이 좋다"] },
     ]);
-    expect(stats?.reasonGroups[1].responses).toEqual([]);
+    expect(
+      stats?.reasonDemographic.byRank1Demographic["전체"][
+        demographicKey("40s", "male")
+      ]
+    ).toEqual(["균형잡혀 있고 심플함이 좋다"]);
   });
 
   it("builds comparison matrix and reason groups", () => {
     const survey = createSurvey();
-    const section = survey.sections[0];
+    const section = survey.sections[1];
     const responses: Response[] = [
       {
         id: "resp-1",
@@ -215,7 +247,32 @@ describe("choice-comparison-stats", () => {
         demographicValues: { "field-1": "보유하지 않음" },
       },
     ];
+
     const answers: Answer[] = [
+      {
+        id: "s1",
+        responseId: "resp-1",
+        questionId: "q-final-a",
+        value: "7",
+      },
+      {
+        id: "s2",
+        responseId: "resp-1",
+        questionId: "q-final-b",
+        value: "4",
+      },
+      {
+        id: "s3",
+        responseId: "resp-2",
+        questionId: "q-final-a",
+        value: "3",
+      },
+      {
+        id: "s4",
+        responseId: "resp-2",
+        questionId: "q-final-b",
+        value: "6",
+      },
       {
         id: "a1",
         responseId: "resp-1",
@@ -267,8 +324,24 @@ describe("choice-comparison-stats", () => {
     expect(stats?.rankBlocks[0].rows[0].category).toBe("요소");
     expect(stats?.rankBlocks[0].rows[0].cells.total.percent).toBe(100);
     expect(stats?.rankBlocks[1].rows[0].cells.total.percent).toBe(100);
-    expect(stats?.reasonGroups[0].responses).toEqual(["색감이 좋음"]);
-    expect(stats?.reasonGroups[1].responses).toEqual(["심플함"]);
+    expect(stats?.reasonGroups[0]).toEqual({
+      rank1Name: "A안",
+      responses: ["색감이 좋음"],
+    });
+    expect(stats?.reasonGroups[1]).toEqual({
+      rank1Name: "B안",
+      responses: ["심플함"],
+    });
+    expect(
+      stats?.reasonDemographic.byRank1Demographic["A안"][
+        demographicKey("20s", "male")
+      ]
+    ).toEqual(["색감이 좋음"]);
+    expect(
+      stats?.reasonDemographic.byRank1Demographic["B안"][
+        demographicKey("30s", "female")
+      ]
+    ).toEqual(["심플함"]);
   });
 
   it("builds demographic comparison segments", () => {

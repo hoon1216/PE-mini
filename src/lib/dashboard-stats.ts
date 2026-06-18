@@ -15,8 +15,6 @@ import type {
   ScoreSectionStats,
   Section,
   SurveyDetail,
-  TextGroupItemStats,
-  TextGroupStats,
   TextSectionStats,
   ChoiceSectionStats,
   ChoiceGroupStats,
@@ -35,10 +33,10 @@ import {
 import {
   buildChoiceComparisonSectionStats,
 } from "./choice-comparison-stats";
+import { buildTextDemographicItems } from "./text-demographic-stats";
 import {
   findPrecedingRankingQuestion,
   isRankGroupedTextSection,
-  textQuestionAppliesToRankGroup,
   type GroupingQuestion,
 } from "./text-grouping-utils";
 
@@ -132,15 +130,18 @@ function scoreForItem(
 
 function buildScoreCellsForResponses(
   itemId: string,
-  items: { id: string }[],
+  items: { id: string; category: string }[],
   filtered: Response[],
   answers: Answer[]
 ): DemographicCell {
+  const category = items.find((item) => item.id === itemId)?.category ?? "";
+  const categoryItems = items.filter((item) => item.category === category);
+
   const scores = filtered
     .map((response) => scoreForItem(answers, response.id, itemId))
     .filter((score): score is number => score !== null);
 
-  const demoItems = items.map((entry) => ({
+  const demoItems = categoryItems.map((entry) => ({
     id: entry.id,
     scores: filtered
       .map((response) => scoreForItem(answers, response.id, entry.id))
@@ -171,13 +172,20 @@ function buildScoreSectionStats(
     };
   });
 
-  const overallScores = items.map((item) => ({
-    id: item.id,
-    scores: responses
-      .map((r) => scoreForItem(answers, r.id, item.id))
-      .filter((s): s is number => s !== null),
-  }));
-  const overallRanks = computeRanks(overallScores);
+  const overallRanks = new Map<string, number | null>();
+  for (const category of [...new Set(items.map((item) => item.category))]) {
+    const categoryItems = items.filter((item) => item.category === category);
+    const categoryScores = categoryItems.map((item) => ({
+      id: item.id,
+      scores: responses
+        .map((response) => scoreForItem(answers, response.id, item.id))
+        .filter((score): score is number => score !== null),
+    }));
+    const categoryRanks = computeRanks(categoryScores);
+    for (const [itemId, rank] of categoryRanks) {
+      overallRanks.set(itemId, rank);
+    }
+  }
 
   const itemStats = items.map((item) => {
     const byDemographic: Record<string, DemographicCell> = {};
@@ -215,7 +223,9 @@ function buildScoreSectionStats(
       category: item.category,
       combination: item.combination,
       averageScore: average(
-        overallScores.find((scoreItem) => scoreItem.id === item.id)?.scores ?? []
+        responses
+          .map((response) => scoreForItem(answers, response.id, item.id))
+          .filter((score): score is number => score !== null)
       ),
       averageRank: overallRanks.get(item.id) ?? null,
       byDemographic,
@@ -336,98 +346,41 @@ function textQuestionTitle(question: Question): string {
 }
 
 function buildTextSectionStats(
+  survey: SurveyDetail,
   section: Section & { questions: Question[] },
   textQuestions: Question[],
-  rankingQuestion: (GroupingQuestion & { id: string; title: string }) | null,
   responses: Response[],
-  answers: Answer[]
+  answers: Answer[],
+  ageGroups: AgeGroup[]
 ): TextSectionStats {
-  const groupedByRank1 =
-    isRankGroupedTextSection(section) && rankingQuestion !== null;
-
-  if (!groupedByRank1 || !rankingQuestion) {
-    const items: TextGroupItemStats[] = textQuestions.map((question) => ({
-      questionId: question.id,
-      questionTitle: textQuestionTitle(question),
-      responses: responses
-        .map((response) => {
-          const answer = answers.find(
-            (a) =>
-              a.responseId === response.id && a.questionId === question.id
-          );
-          if (!answer?.value?.trim()) return null;
-          return {
-            responseId: response.id,
-            participantName: response.participantName,
-            gender: response.gender,
-            ageGroup: response.ageGroup,
-            submittedAt: response.submittedAt,
-            value: answer.value.trim(),
-          };
-        })
-        .filter((entry): entry is NonNullable<typeof entry> => entry !== null),
-    }));
-
-    return {
-      sectionId: section.id,
-      sectionTitle: section.title,
-      rankingQuestionTitle: null,
-      groupedByRank1: false,
-      groups: [{ groupName: "전체", items }],
-    };
-  }
-
-  const rankingConfig = rankingQuestion.config as RankingQuestionConfig;
-  const groups: TextGroupStats[] = rankingConfig.combinations.map(
-    (groupName) => {
-      const items: TextGroupItemStats[] = textQuestions
-        .filter((question) => textQuestionAppliesToRankGroup(question, groupName))
-        .map((question) => ({
-          questionId: question.id,
-          questionTitle: textQuestionTitle(question),
-          responses: responses
-            .map((response) => {
-              const rankAnswer = answers.find(
-                (a) =>
-                  a.responseId === response.id &&
-                  a.questionId === rankingQuestion.id
-              );
-              const parsed = parseRankingAnswer(rankAnswer?.value ?? "");
-              if (parsed?.rank1 !== groupName) return null;
-
-              const textAnswer = answers.find(
-                (a) =>
-                  a.responseId === response.id && a.questionId === question.id
-              );
-              if (!textAnswer?.value?.trim()) return null;
-
-              return {
-                responseId: response.id,
-                participantName: response.participantName,
-                gender: response.gender,
-                ageGroup: response.ageGroup,
-                submittedAt: response.submittedAt,
-                value: textAnswer.value.trim(),
-              };
-            })
-            .filter(
-              (entry): entry is NonNullable<typeof entry> => entry !== null
-            ),
-        }));
-
-      return { groupName, items };
-    }
+  const demographic = buildTextDemographicItems(
+    survey,
+    textQuestions,
+    responses,
+    answers,
+    ageGroups
   );
 
   return {
     sectionId: section.id,
     sectionTitle: section.title,
-    rankingQuestionTitle:
-      rankingQuestion.title !== "순위 문항"
-        ? rankingQuestion.title
-        : "순위 선정",
-    groupedByRank1: true,
-    groups,
+    rankingQuestionTitle: null,
+    groupedByRank1: false,
+    groupedByFinalDesignRank1: demographic.groupedByFinalDesignRank1,
+    ageGroups,
+    rank1Names: demographic.rank1Names,
+    demographicItems: demographic.items.map((item) => {
+      const question = textQuestions.find(
+        (entry) => entry.id === item.questionId
+      );
+      return {
+        ...item,
+        questionTitle: question
+          ? textQuestionTitle(question)
+          : item.questionTitle,
+      };
+    }),
+    groups: [],
   };
 }
 
@@ -650,23 +603,15 @@ export function computeDashboardStats(
     } else {
       const textQuestions = section.questions.filter((q) => q.type === "text");
       if (textQuestions.length > 0) {
-        const precedingRanking = findPrecedingRankingQuestion(section);
-        const rankingQuestion =
-          precedingRanking?.id && precedingRanking.title !== undefined
-            ? (precedingRanking as GroupingQuestion & {
-                id: string;
-                title: string;
-              })
-            : null;
-
         tables.push({
           type: "text",
           data: buildTextSectionStats(
+            survey,
             section,
             textQuestions,
-            rankingQuestion,
             responses,
-            answers
+            answers,
+            ageGroups
           ),
         });
       }

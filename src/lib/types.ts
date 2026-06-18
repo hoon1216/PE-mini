@@ -207,11 +207,21 @@ export interface TextGroupStats {
   items: TextGroupItemStats[];
 }
 
+export interface TextDemographicItemStats {
+  questionId: string;
+  questionTitle: string;
+  byRank1Demographic: Record<string, Record<string, string[]>>;
+}
+
 export interface TextSectionStats {
   sectionId: string;
   sectionTitle: string;
   rankingQuestionTitle: string | null;
   groupedByRank1: boolean;
+  groupedByFinalDesignRank1: boolean;
+  ageGroups: AgeGroup[];
+  rank1Names: string[];
+  demographicItems: TextDemographicItemStats[];
   groups: TextGroupStats[];
 }
 
@@ -285,6 +295,12 @@ export interface ChoiceComparisonReasonGroup {
   responses: string[];
 }
 
+export interface ChoiceComparisonReasonDemographic {
+  ageGroups: AgeGroup[];
+  rank1Names: string[];
+  byRank1Demographic: Record<string, Record<string, string[]>>;
+}
+
 export interface ChoiceComparisonSectionStats {
   sectionId: string;
   sectionTitle: string;
@@ -292,6 +308,7 @@ export interface ChoiceComparisonSectionStats {
   rankingQuestionTitle: string;
   rankBlocks: ChoiceComparisonRankBlock[];
   reasonTitle: string;
+  reasonDemographic: ChoiceComparisonReasonDemographic;
   reasonGroups: ChoiceComparisonReasonGroup[];
 }
 

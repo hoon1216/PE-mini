@@ -173,6 +173,87 @@ function CustomFieldMetricSubHeaders({
   );
 }
 
+function TextDemographicMatrix({
+  ageGroups,
+  rank1Names,
+  byRank1Demographic,
+  showRank1Headers = true,
+}: {
+  ageGroups: AgeGroup[];
+  rank1Names: string[];
+  byRank1Demographic: Record<string, Record<string, string[]>>;
+  showRank1Headers?: boolean;
+}) {
+  const genders: Gender[] = ["male", "female"];
+  const hideRank1 =
+    rank1Names.length === 1 && rank1Names[0] === "전체";
+
+  return (
+    <div className="space-y-4">
+      {rank1Names.map((rank1Name) => {
+        const cells = byRank1Demographic[rank1Name] ?? {};
+
+        return (
+          <div key={rank1Name}>
+            {showRank1Headers && !hideRank1 && (
+              <h4 className="mb-2 text-base font-semibold">{rank1Name}</h4>
+            )}
+            <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
+              <thead>
+                <tr>
+                  {ageGroups.map((age) => (
+                    <th key={age} colSpan={2} className={thClass}>
+                      {AGE_GROUP_LABELS[age]}
+                    </th>
+                  ))}
+                </tr>
+                <tr>
+                  {ageGroups.flatMap((age) =>
+                    genders.map((gender) => (
+                      <th key={`${age}-${gender}`} className={thClass}>
+                        {GENDER_LABELS[gender]}
+                      </th>
+                    ))
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {ageGroups.flatMap((age) =>
+                    genders.map((gender) => {
+                      const key = demographicKey(age, gender);
+                      const responses = cells[key] ?? [];
+
+                      return (
+                        <td
+                          key={`${rank1Name}-${key}`}
+                          className={`${tdClass} text-left align-top`}
+                        >
+                          {responses.length === 0 ? (
+                            <span className="text-muted">-</span>
+                          ) : (
+                            <div className="space-y-1">
+                              {responses.map((response, index) => (
+                                <p key={`${rank1Name}-${key}-${index}`}>
+                                  {response}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })
+                  )}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ScoreSectionTable({
   section,
   tableLabel,
@@ -546,44 +627,21 @@ export function ChoiceComparisonSectionTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
-          <thead>
-            <tr>
-              <th colSpan={2} className={thClass}>
-                {section.reasonTitle}
-              </th>
-            </tr>
-            <tr>
-              <th className={`${thClass} w-28`}>안</th>
-              <th className={thClass}>선호 이유</th>
-            </tr>
-          </thead>
-          <tbody>
-            {section.reasonGroups.map((group) => (
-              <tr key={group.rank1Name}>
-                <td className={`${tdClass} align-top font-medium`}>
-                  {group.rank1Name}
-                </td>
-                <td className={`${tdClass} text-left align-top`}>
-                  {group.responses.length === 0 ? (
-                    <span className="text-muted">답변 없음</span>
-                  ) : (
-                    <div className="space-y-2">
-                      {group.responses.map((response, index) => (
-                        <p
-                          key={`${group.rank1Name}-${index}`}
-                          className="border-b border-slate-200 pb-2 last:border-b-0 last:pb-0"
-                        >
-                          {response}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <p className="mb-2 text-sm font-medium">{section.reasonTitle}</p>
+        {section.reasonDemographic.rank1Names.some(
+          (name) => name !== "전체"
+        ) && (
+          <p className="mb-2 text-xs text-muted">최종 디자인 1순위 기준</p>
+        )}
+        {section.reasonDemographic.ageGroups.length === 0 ? (
+          <p className="text-sm text-muted">제출된 주관식 답변이 없습니다.</p>
+        ) : (
+          <TextDemographicMatrix
+            ageGroups={section.reasonDemographic.ageGroups}
+            rank1Names={section.reasonDemographic.rank1Names}
+            byRank1Demographic={section.reasonDemographic.byRank1Demographic}
+          />
+        )}
       </div>
     </div>
   );
@@ -690,12 +748,6 @@ export function ChoiceSectionTable({
   );
 }
 
-function formatSubmittedAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR");
-}
-
 export function TextSectionTable({
   section,
   tableLabel,
@@ -704,111 +756,36 @@ export function TextSectionTable({
   tableLabel?: string;
 }) {
   const headerLabel = tableLabel ?? "주관식";
+  const hasResponses = section.demographicItems.some((item) =>
+    section.rank1Names.some((rank1Name) =>
+      Object.values(item.byRank1Demographic[rank1Name] ?? {}).some(
+        (responses) => responses.length > 0
+      )
+    )
+  );
 
   return (
     <div className="space-y-5">
       <p className="text-sm font-medium text-muted">{headerLabel}</p>
-      {section.groupedByRank1 && section.rankingQuestionTitle && (
-        <p className="text-xs text-muted">
-          {section.rankingQuestionTitle} 1순위 기준 그룹
-        </p>
+      {section.groupedByFinalDesignRank1 && (
+        <p className="text-xs text-muted">최종 디자인 1순위 기준</p>
       )}
-      {section.groups.map((group) => {
-        const hasResponses = group.items.some((item) => item.responses.length > 0);
-        if (!section.groupedByRank1 && group.groupName === "전체" && !hasResponses) {
-          return (
-            <p key={group.groupName} className="text-sm text-muted">
-              제출된 주관식 답변이 없습니다.
-            </p>
-          );
-        }
-
-        return (
-          <div key={group.groupName} className="space-y-3">
-            {section.groupedByRank1 && (
-              <h4 className="text-base font-semibold">{group.groupName}</h4>
+      {!hasResponses ? (
+        <p className="text-sm text-muted">제출된 주관식 답변이 없습니다.</p>
+      ) : (
+        section.demographicItems.map((item) => (
+          <div key={item.questionId} className="space-y-3">
+            {section.demographicItems.length > 1 && (
+              <p className="text-sm font-medium">{item.questionTitle}</p>
             )}
-            {group.items.map((item) => (
-              <div key={item.questionId} className="overflow-x-auto">
-                {section.groupedByRank1 && item.questionTitle && (
-                  <p className="mb-2 text-sm font-medium">{item.questionTitle}</p>
-                )}
-                {item.responses.length === 0 ? (
-                  <p className="text-sm text-muted">답변 없음</p>
-                ) : section.groupedByRank1 ? (
-                  <table className="w-full min-w-[360px] border-collapse border border-slate-300 text-sm">
-                    <thead>
-                      <tr>
-                        <th className={thClass}>성별</th>
-                        <th className={thClass}>연령대</th>
-                        <th className={thClass}>답변</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {item.responses.map((response) => (
-                        <tr key={`${item.questionId}-${response.responseId}`}>
-                          <td className={tdClass}>
-                            {response.gender
-                              ? GENDER_LABELS[response.gender]
-                              : "-"}
-                          </td>
-                          <td className={tdClass}>
-                            {response.ageGroup
-                              ? AGE_GROUP_LABELS[response.ageGroup]
-                              : "-"}
-                          </td>
-                          <td className={`${tdClass} text-left`}>
-                            {response.value}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <table className="w-full min-w-[640px] border-collapse border border-slate-300 text-sm">
-                    <thead>
-                      <tr>
-                        <th className={thClass}>문항</th>
-                        <th className={thClass}>참가자</th>
-                        <th className={thClass}>성별</th>
-                        <th className={thClass}>연령대</th>
-                        <th className={thClass}>제출일</th>
-                        <th className={thClass}>답변</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {item.responses.map((response) => (
-                        <tr key={`${item.questionId}-${response.responseId}`}>
-                          <td className={tdClass}>{item.questionTitle}</td>
-                          <td className={tdClass}>
-                            {response.participantName ?? "이름 없음"}
-                          </td>
-                          <td className={tdClass}>
-                            {response.gender
-                              ? GENDER_LABELS[response.gender]
-                              : "-"}
-                          </td>
-                          <td className={tdClass}>
-                            {response.ageGroup
-                              ? AGE_GROUP_LABELS[response.ageGroup]
-                              : "-"}
-                          </td>
-                          <td className={tdClass}>
-                            {formatSubmittedAt(response.submittedAt)}
-                          </td>
-                          <td className={`${tdClass} text-left`}>
-                            {response.value}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))}
+            <TextDemographicMatrix
+              ageGroups={section.ageGroups}
+              rank1Names={section.rank1Names}
+              byRank1Demographic={item.byRank1Demographic}
+            />
           </div>
-        );
-      })}
+        ))
+      )}
     </div>
   );
 }

@@ -2,8 +2,11 @@ import { parseChoiceAnswer } from "./choice-utils";
 import { getPresentAgeGroups, parseRankingAnswer } from "./demographic-utils";
 import {
   findPrecedingRankingQuestion,
-  textQuestionAppliesToRankGroup,
 } from "./text-grouping-utils";
+import {
+  buildTextDemographicItems,
+  mergeTextDemographicItems,
+} from "./text-demographic-stats";
 import type {
   Answer,
   ChoiceQuestionConfig,
@@ -265,79 +268,6 @@ function resolveComparisonGroups(
   };
 }
 
-function buildReasonGroups(
-  mode: ChoiceComparisonSectionStats["comparisonMode"],
-  groups: string[],
-  rankingQuestion: ReturnType<typeof findPrecedingRankingQuestion>,
-  choiceQuestions: Question[],
-  textQuestions: Question[],
-  responses: Response[],
-  answers: Answer[]
-) {
-  if (mode === "rank1" && rankingQuestion?.id) {
-    return groups.map((rank1Name) => {
-      const responsesForRank: string[] = [];
-
-      for (const response of responses) {
-        const rankAnswer = answers.find(
-          (answer) =>
-            answer.responseId === response.id &&
-            answer.questionId === rankingQuestion.id
-        );
-        const parsed = parseRankingAnswer(rankAnswer?.value ?? "");
-        if (parsed?.rank1 !== rank1Name) continue;
-
-        for (const question of textQuestions) {
-          if (!textQuestionAppliesToRankGroup(question, rank1Name)) continue;
-
-          const textAnswer = answers.find(
-            (answer) =>
-              answer.responseId === response.id &&
-              answer.questionId === question.id
-          );
-          const value = textAnswer?.value?.trim();
-          if (value) responsesForRank.push(value);
-        }
-      }
-
-      return { rank1Name, responses: responsesForRank };
-    });
-  }
-
-  const groupingChoice = findReasonGroupingChoice(choiceQuestions);
-  if (!groupingChoice) {
-    return groups.map((groupName) => ({ rank1Name: groupName, responses: [] }));
-  }
-
-  const groupingConfig = groupingChoice.config as ChoiceQuestionConfig;
-
-  return groups.map((groupName) => {
-    const responsesForGroup: string[] = [];
-
-    for (const response of responses) {
-      const choiceAnswer = answers.find(
-        (answer) =>
-          answer.responseId === response.id &&
-          answer.questionId === groupingChoice.id
-      );
-      const selected = parseChoiceAnswer(choiceAnswer?.value ?? "", groupingConfig);
-      const targetOption = targetOptionForGroup(groupingConfig, groupName);
-      if (!targetOption || !selected.includes(targetOption)) continue;
-
-      for (const question of textQuestions) {
-        const textAnswer = answers.find(
-          (answer) =>
-            answer.responseId === response.id && answer.questionId === question.id
-        );
-        const value = textAnswer?.value?.trim();
-        if (value) responsesForGroup.push(value);
-      }
-    }
-
-    return { rank1Name: groupName, responses: responsesForGroup };
-  });
-}
-
 export function buildChoiceComparisonSectionStats(
   survey: SurveyDetail,
   section: Section & { questions: Question[] },
@@ -401,15 +331,26 @@ export function buildChoiceComparisonSectionStats(
     }),
   }));
 
-  const reasonGroups = buildReasonGroups(
-    mode,
-    groups,
-    rankingQuestion,
-    choiceQuestions,
+  const reasonAgeGroups = getPresentAgeGroups(responses);
+  const reasonDemographicData = buildTextDemographicItems(
+    survey,
     textQuestions,
     responses,
-    answers
+    answers,
+    reasonAgeGroups
   );
+  const mergedByRank1 = mergeTextDemographicItems(reasonDemographicData.items);
+  const reasonDemographic = {
+    ageGroups: reasonAgeGroups,
+    rank1Names: reasonDemographicData.rank1Names,
+    byRank1Demographic: mergedByRank1,
+  };
+  const reasonGroups = reasonDemographic.rank1Names.map((rank1Name) => ({
+    rank1Name,
+    responses: Object.values(
+      reasonDemographic.byRank1Demographic[rank1Name] ?? {}
+    ).flat(),
+  }));
 
   return {
     sectionId: section.id,
@@ -423,6 +364,7 @@ export function buildChoiceComparisonSectionStats(
         : findReasonGroupingChoice(choiceQuestions)?.title ?? "선택 기준",
     rankBlocks,
     reasonTitle: reasonSectionTitle(textQuestions),
+    reasonDemographic,
     reasonGroups,
   };
 }

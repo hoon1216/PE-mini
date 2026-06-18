@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeDashboardStats } from "./dashboard-stats";
+import { demographicKey } from "./demographic-utils";
 import type { Answer, Response, SurveyDetail } from "./types";
 
 function createSurvey(): SurveyDetail {
@@ -315,26 +316,44 @@ describe("computeDashboardStats", () => {
     }
   });
 
-  it("groups text responses by preceding ranking rank1 in black section", () => {
+  it("groups text responses by final design rank1 and demographics", () => {
     const survey: SurveyDetail = {
       ...createSurvey(),
       sections: [
+        {
+          id: "section-score",
+          surveyId: "survey-1",
+          title: "점수",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-final-a",
+              sectionId: "section-score",
+              title: "A안",
+              description: null,
+              type: "score",
+              config: { category: "최종 디자인", combination: "A안" },
+              sortOrder: 0,
+            },
+            {
+              id: "q-final-b",
+              sectionId: "section-score",
+              title: "B안",
+              description: null,
+              type: "score",
+              config: { category: "최종 디자인", combination: "B안" },
+              sortOrder: 1,
+            },
+          ],
+        },
         {
           id: "section-black",
           surveyId: "survey-1",
           title: "블랙",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           questions: [
-            {
-              id: "q-rank-black",
-              sectionId: "section-black",
-              title: "그룹 순위",
-              description: null,
-              type: "ranking",
-              config: { combinations: ["믹스그룹", "레드그룹"] },
-              sortOrder: 0,
-            },
             {
               id: "q-text-black",
               sectionId: "section-black",
@@ -342,7 +361,7 @@ describe("computeDashboardStats", () => {
               description: null,
               type: "text",
               config: { maxLength: 500 },
-              sortOrder: 1,
+              sortOrder: 0,
             },
           ],
         },
@@ -351,96 +370,13 @@ describe("computeDashboardStats", () => {
 
     const responses = createResponses();
     const answers: Answer[] = [
-      {
-        id: "a7",
-        responseId: "resp-1",
-        questionId: "q-rank-black",
-        value: JSON.stringify({ rank1: "믹스그룹", rank2: "레드그룹" }),
-      },
+      { id: "a1", responseId: "resp-1", questionId: "q-final-a", value: "6" },
+      { id: "a2", responseId: "resp-1", questionId: "q-final-b", value: "4" },
       {
         id: "a8",
         responseId: "resp-1",
         questionId: "q-text-black",
-        value: "블랙 믹스 의견",
-      },
-    ];
-
-    const stats = computeDashboardStats(survey, responses, answers);
-    const textTable = stats.sectionGroups[0].tables.find(
-      (table) => table.type === "text"
-    );
-
-    expect(textTable?.type).toBe("text");
-    if (textTable?.type === "text") {
-      expect(textTable.data.groupedByRank1).toBe(true);
-      const mixGroup = textTable.data.groups.find(
-        (group) => group.groupName === "믹스그룹"
-      );
-      expect(mixGroup?.items[0]?.responses[0]?.value).toBe("블랙 믹스 의견");
-    }
-  });
-
-  it("groups text responses by preceding ranking rank1 in section 2", () => {
-    const survey: SurveyDetail = {
-      ...createSurvey(),
-      sections: [
-        createSurvey().sections[0],
-        {
-          id: "section-2",
-          surveyId: "survey-1",
-          title: "그레이",
-          description: null,
-          sortOrder: 1,
-          questions: [
-            {
-              id: "q-rank-gray",
-              sectionId: "section-2",
-              title: "그룹 순위",
-              description: null,
-              type: "ranking",
-              config: { combinations: ["믹스그룹", "레드그룹"] },
-              sortOrder: 0,
-            },
-            {
-              id: "q-text-gray",
-              sectionId: "section-2",
-              title: "의견",
-              description: null,
-              type: "text",
-              config: { maxLength: 500 },
-              sortOrder: 1,
-            },
-          ],
-        },
-      ],
-    };
-
-    const responses = createResponses();
-    const answers: Answer[] = [
-      ...createAnswers(),
-      {
-        id: "a7",
-        responseId: "resp-1",
-        questionId: "q-rank-gray",
-        value: JSON.stringify({ rank1: "믹스그룹", rank2: "레드그룹" }),
-      },
-      {
-        id: "a8",
-        responseId: "resp-1",
-        questionId: "q-text-gray",
-        value: "믹스 의견",
-      },
-      {
-        id: "a9",
-        responseId: "resp-2",
-        questionId: "q-rank-gray",
-        value: JSON.stringify({ rank1: "레드그룹", rank2: "믹스그룹" }),
-      },
-      {
-        id: "a10",
-        responseId: "resp-2",
-        questionId: "q-text-gray",
-        value: "레드 의견",
+        value: "블랙 A안 의견",
       },
     ];
 
@@ -451,15 +387,192 @@ describe("computeDashboardStats", () => {
 
     expect(textTable?.type).toBe("text");
     if (textTable?.type === "text") {
-      expect(textTable.data.groupedByRank1).toBe(true);
-      const mixGroup = textTable.data.groups.find(
-        (group) => group.groupName === "믹스그룹"
+      expect(textTable.data.groupedByFinalDesignRank1).toBe(true);
+      const item = textTable.data.demographicItems[0];
+      expect(
+        item.byRank1Demographic["A안"][demographicKey("20s", "male")]
+      ).toEqual(["블랙 A안 의견"]);
+    }
+  });
+
+  it("groups text responses by final design rank1 across sections", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-score",
+          surveyId: "survey-1",
+          title: "점수",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-final-a",
+              sectionId: "section-score",
+              title: "A안",
+              description: null,
+              type: "score",
+              config: { category: "최종 디자인", combination: "A안" },
+              sortOrder: 0,
+            },
+            {
+              id: "q-final-b",
+              sectionId: "section-score",
+              title: "B안",
+              description: null,
+              type: "score",
+              config: { category: "최종 디자인", combination: "B안" },
+              sortOrder: 1,
+            },
+          ],
+        },
+        {
+          id: "section-2",
+          surveyId: "survey-1",
+          title: "그레이",
+          description: null,
+          sortOrder: 1,
+          questions: [
+            {
+              id: "q-text-gray",
+              sectionId: "section-2",
+              title: "의견",
+              description: null,
+              type: "text",
+              config: { maxLength: 500 },
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    };
+
+    const responses = createResponses();
+    const answers: Answer[] = [
+      { id: "a1", responseId: "resp-1", questionId: "q-final-a", value: "6" },
+      { id: "a2", responseId: "resp-1", questionId: "q-final-b", value: "4" },
+      {
+        id: "a8",
+        responseId: "resp-1",
+        questionId: "q-text-gray",
+        value: "A안 의견",
+      },
+      { id: "a3", responseId: "resp-2", questionId: "q-final-a", value: "3" },
+      { id: "a4", responseId: "resp-2", questionId: "q-final-b", value: "7" },
+      {
+        id: "a10",
+        responseId: "resp-2",
+        questionId: "q-text-gray",
+        value: "B안 의견",
+      },
+    ];
+
+    const stats = computeDashboardStats(survey, responses, answers);
+    const textTable = stats.sectionGroups[1].tables.find(
+      (table) => table.type === "text"
+    );
+
+    expect(textTable?.type).toBe("text");
+    if (textTable?.type === "text") {
+      expect(textTable.data.groupedByFinalDesignRank1).toBe(true);
+      const item = textTable.data.demographicItems[0];
+      expect(
+        item.byRank1Demographic["A안"][demographicKey("20s", "male")]
+      ).toEqual(["A안 의견"]);
+      expect(
+        item.byRank1Demographic["B안"][demographicKey("30s", "female")]
+      ).toEqual(["B안 의견"]);
+    }
+  });
+
+  it("ranks score items within the same category only", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-multi",
+          surveyId: "survey-1",
+          title: "다중 구분",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-color-a",
+              sectionId: "section-multi",
+              title: "색상 A",
+              description: null,
+              type: "score",
+              config: { category: "색상", combination: "A" },
+              sortOrder: 0,
+            },
+            {
+              id: "q-color-b",
+              sectionId: "section-multi",
+              title: "색상 B",
+              description: null,
+              type: "score",
+              config: { category: "색상", combination: "B" },
+              sortOrder: 1,
+            },
+            {
+              id: "q-size-x",
+              sectionId: "section-multi",
+              title: "크기 X",
+              description: null,
+              type: "score",
+              config: { category: "크기", combination: "X" },
+              sortOrder: 2,
+            },
+            {
+              id: "q-size-y",
+              sectionId: "section-multi",
+              title: "크기 Y",
+              description: null,
+              type: "score",
+              config: { category: "크기", combination: "Y" },
+              sortOrder: 3,
+            },
+          ],
+        },
+      ],
+    };
+
+    const responses = createResponses();
+    const answers: Answer[] = [
+      { id: "a1", responseId: "resp-1", questionId: "q-color-a", value: "5" },
+      { id: "a2", responseId: "resp-1", questionId: "q-color-b", value: "3" },
+      { id: "a3", responseId: "resp-1", questionId: "q-size-x", value: "2" },
+      { id: "a4", responseId: "resp-1", questionId: "q-size-y", value: "5" },
+      { id: "a5", responseId: "resp-2", questionId: "q-color-a", value: "4" },
+      { id: "a6", responseId: "resp-2", questionId: "q-color-b", value: "5" },
+      { id: "a7", responseId: "resp-2", questionId: "q-size-x", value: "5" },
+      { id: "a8", responseId: "resp-2", questionId: "q-size-y", value: "3" },
+    ];
+
+    const stats = computeDashboardStats(survey, responses, answers);
+    const scoreTable = stats.sectionGroups[0].tables.find(
+      (table) => table.type === "score"
+    );
+
+    expect(scoreTable?.type).toBe("score");
+    if (scoreTable?.type === "score") {
+      const colorA = scoreTable.data.items.find(
+        (item) => item.itemId === "q-color-a"
       );
-      const redGroup = textTable.data.groups.find(
-        (group) => group.groupName === "레드그룹"
+      const colorB = scoreTable.data.items.find(
+        (item) => item.itemId === "q-color-b"
       );
-      expect(mixGroup?.items[0]?.responses[0]?.value).toBe("믹스 의견");
-      expect(redGroup?.items[0]?.responses[0]?.value).toBe("레드 의견");
+      const sizeX = scoreTable.data.items.find(
+        (item) => item.itemId === "q-size-x"
+      );
+      const sizeY = scoreTable.data.items.find(
+        (item) => item.itemId === "q-size-y"
+      );
+
+      expect(colorA?.averageRank).toBe(1);
+      expect(colorB?.averageRank).toBe(2);
+      expect(sizeX?.averageRank).toBe(2);
+      expect(sizeY?.averageRank).toBe(1);
     }
   });
 });

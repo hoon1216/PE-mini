@@ -1,5 +1,9 @@
 import ExcelJS from "exceljs";
 import { demographicKey, scoreCustomFieldKey } from "./demographic-utils";
+import {
+  textDemographicHeaderRow,
+  textDemographicValueRow,
+} from "./text-demographic-stats";
 import type {
   DashboardSectionTable,
   DashboardStats,
@@ -206,52 +210,30 @@ function writeTextTable(
   const section = table.data;
   writer.addTitle(`주관식 — ${section.sectionTitle}`);
 
-  if (section.groupedByRank1 && section.rankingQuestionTitle) {
-    writer.addRows([[`${section.rankingQuestionTitle} 1순위 기준 그룹`]]);
+  if (section.groupedByFinalDesignRank1) {
+    writer.addRows([["최종 디자인 1순위 기준"]]);
   }
 
-  for (const group of section.groups) {
-    if (section.groupedByRank1) {
-      writer.addRows([[group.groupName]]);
+  const hideRank1 =
+    section.rank1Names.length === 1 && section.rank1Names[0] === "전체";
+
+  for (const item of section.demographicItems) {
+    if (section.demographicItems.length > 1) {
+      writer.addRows([[item.questionTitle]]);
     }
 
-    for (const item of group.items) {
-      if (!section.groupedByRank1) {
-        writer.addRows([[item.questionTitle]]);
-      } else if (item.questionTitle) {
-        writer.addRows([[item.questionTitle]]);
+    for (const rank1Name of section.rank1Names) {
+      if (!hideRank1) {
+        writer.addRows([[rank1Name]]);
       }
 
-      if (item.responses.length === 0) {
-        writer.addRows([["답변 없음"]]);
-        continue;
-      }
-
-      if (section.groupedByRank1) {
-        writer.addRows([["성별", "연령대", "답변"]]);
-        for (const response of item.responses) {
-          writer.addRows([
-            [
-              response.gender ? GENDER_LABELS[response.gender] : "-",
-              response.ageGroup ? AGE_GROUP_LABELS[response.ageGroup] : "-",
-              response.value,
-            ],
-          ]);
-        }
-      } else {
-        writer.addRows([["문항", "참가자", "성별", "연령대", "답변"]]);
-        for (const response of item.responses) {
-          writer.addRows([
-            [
-              item.questionTitle,
-              response.participantName ?? "이름 없음",
-              response.gender ? GENDER_LABELS[response.gender] : "-",
-              response.ageGroup ? AGE_GROUP_LABELS[response.ageGroup] : "-",
-              response.value,
-            ],
-          ]);
-        }
-      }
+      writer.addRows([textDemographicHeaderRow(section.ageGroups)]);
+      writer.addRows([
+        textDemographicValueRow(
+          section.ageGroups,
+          item.byRank1Demographic[rank1Name] ?? {}
+        ),
+      ]);
     }
   }
   writer.addBlank(2);
@@ -325,15 +307,27 @@ function writeChoiceComparisonTable(
 
   writer.addBlank();
   writer.addTitle(section.reasonTitle);
-  writer.addRows([["안", "선호 이유"]]);
-  for (const group of section.reasonGroups) {
-    if (group.responses.length === 0) {
-      writer.addRows([[group.rank1Name, "답변 없음"]]);
-      continue;
+  if (section.reasonDemographic.rank1Names.some((name) => name !== "전체")) {
+    writer.addRows([["최종 디자인 1순위 기준"]]);
+  }
+
+  const hideRank1 =
+    section.reasonDemographic.rank1Names.length === 1 &&
+    section.reasonDemographic.rank1Names[0] === "전체";
+
+  for (const rank1Name of section.reasonDemographic.rank1Names) {
+    if (!hideRank1) {
+      writer.addRows([[rank1Name]]);
     }
-    for (const [index, response] of group.responses.entries()) {
-      writer.addRows([[index === 0 ? group.rank1Name : "", response]]);
-    }
+    writer.addRows([
+      textDemographicHeaderRow(section.reasonDemographic.ageGroups),
+    ]);
+    writer.addRows([
+      textDemographicValueRow(
+        section.reasonDemographic.ageGroups,
+        section.reasonDemographic.byRank1Demographic[rank1Name] ?? {}
+      ),
+    ]);
   }
   writer.addBlank(2);
 }
