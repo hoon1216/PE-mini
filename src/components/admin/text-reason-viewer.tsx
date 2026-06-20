@@ -6,8 +6,7 @@ import type {
   AgeGroup,
   DemographicFieldConfig,
   Gender,
-  ScoreCompareReasonEntry,
-  ScoreReasonCategoryStats,
+  TextReasonEntry,
 } from "@/lib/types";
 import { AGE_GROUP_LABELS, GENDER_LABELS } from "@/lib/types";
 
@@ -15,15 +14,21 @@ const thClass =
   "border border-slate-300 bg-slate-100 px-2 py-2 text-center text-xs font-semibold";
 const tdClass = "border border-slate-300 px-2 py-2 text-center text-xs";
 
-interface ScoreCompareReasonViewerProps {
+export interface TextReasonAnswerGroup {
+  label: string;
+  entries: TextReasonEntry[];
+}
+
+interface TextReasonViewerProps {
   title: string;
-  categories: ScoreReasonCategoryStats[];
+  entries: TextReasonEntry[];
   demographicFields: DemographicFieldConfig[];
   ageGroups: AgeGroup[];
+  answerGroups?: TextReasonAnswerGroup[];
 }
 
 function matchesFilters(
-  entry: ScoreCompareReasonEntry,
+  entry: TextReasonEntry,
   gender: Gender | null,
   ageGroup: AgeGroup | null,
   customFilters: Record<string, string | null>
@@ -67,12 +72,13 @@ function SelectableCell({
   );
 }
 
-export function ScoreCompareReasonViewer({
+export function TextReasonViewer({
   title,
-  categories,
+  entries,
   demographicFields,
   ageGroups,
-}: ScoreCompareReasonViewerProps) {
+  answerGroups,
+}: TextReasonViewerProps) {
   const [gender, setGender] = useState<Gender | null>(null);
   const [ageGroup, setAgeGroup] = useState<AgeGroup | null>(null);
   const [customFilters, setCustomFilters] = useState<
@@ -80,42 +86,39 @@ export function ScoreCompareReasonViewer({
   >(() => Object.fromEntries(demographicFields.map((field) => [field.id, null])));
   const [showAnswers, setShowAnswers] = useState(false);
 
-  const allEntries = useMemo(
-    () =>
-      categories.flatMap((category) =>
-        category.blocks.flatMap((block) => block.entries)
-      ),
-    [categories]
-  );
-
-  const hasReasons = allEntries.length > 0;
+  const hasResponses = entries.length > 0;
 
   const countFor = (
     partialGender: Gender | null,
     partialAge: AgeGroup | null,
     partialCustom: Record<string, string | null>
   ) =>
-    allEntries.filter((entry) =>
+    entries.filter((entry) =>
       matchesFilters(entry, partialGender, partialAge, partialCustom)
     ).length;
 
-  const filteredBlocks = useMemo(() => {
+  const filteredReasons = useMemo(() => {
     if (!showAnswers) return [];
 
-    return categories.flatMap((category) =>
-      category.blocks
-        .map((block) => ({
-          category: category.category,
-          winningCombination: block.winningCombination,
-          reasons: block.entries
-            .filter((entry) =>
-              matchesFilters(entry, gender, ageGroup, customFilters)
-            )
-            .map((entry) => entry.reason),
-        }))
-        .filter((block) => block.reasons.length > 0)
-    );
-  }, [categories, gender, ageGroup, customFilters, showAnswers]);
+    return entries
+      .filter((entry) => matchesFilters(entry, gender, ageGroup, customFilters))
+      .map((entry) => entry.reason);
+  }, [entries, gender, ageGroup, customFilters, showAnswers]);
+
+  const filteredAnswerGroups = useMemo(() => {
+    if (!showAnswers || !answerGroups) return [];
+
+    return answerGroups
+      .map((group) => ({
+        label: group.label,
+        reasons: group.entries
+          .filter((entry) =>
+            matchesFilters(entry, gender, ageGroup, customFilters)
+          )
+          .map((entry) => entry.reason),
+      }))
+      .filter((group) => group.reasons.length > 0);
+  }, [answerGroups, gender, ageGroup, customFilters, showAnswers]);
 
   const customColCount = demographicFields.reduce(
     (sum, field) => sum + field.options.length,
@@ -141,9 +144,13 @@ export function ScoreCompareReasonViewer({
     setShowAnswers(true);
   }
 
-  if (!hasReasons) {
-    return <p className="text-sm text-muted">제출된 이유가 없습니다.</p>;
+  if (!hasResponses) {
+    return <p className="text-sm text-muted">제출된 답변이 없습니다.</p>;
   }
+
+  const hasFilteredAnswers = answerGroups
+    ? filteredAnswerGroups.length > 0
+    : filteredReasons.length > 0;
 
   return (
     <div className="space-y-4">
@@ -241,34 +248,41 @@ export function ScoreCompareReasonViewer({
       </div>
 
       {showAnswers && (
-        <div className="space-y-4">
-          {filteredBlocks.length === 0 ? (
+        <>
+          {!hasFilteredAnswers ? (
             <p className="text-sm text-muted">
-              선택한 조건에 해당하는 이유가 없습니다.
+              선택한 조건에 해당하는 답변이 없습니다.
             </p>
-          ) : (
-            filteredBlocks.map((block) => (
-              <div
-                key={`${block.category}-${block.winningCombination}`}
-                className="rounded-xl border border-border bg-slate-50 p-4"
-              >
-                <p className="text-sm font-semibold">
-                  {block.category} · {block.winningCombination}
-                </p>
-                <div className="mt-3 space-y-2">
-                  {block.reasons.map((reason, index) => (
-                    <p
-                      key={`${block.winningCombination}-${index}`}
-                      className="text-sm"
-                    >
-                      {reason}
-                    </p>
-                  ))}
+          ) : answerGroups ? (
+            <div className="space-y-4">
+              {filteredAnswerGroups.map((group) => (
+                <div
+                  key={group.label}
+                  className="rounded-xl border border-border bg-slate-50 p-4"
+                >
+                  <p className="text-sm font-semibold">{group.label}</p>
+                  <div className="mt-3 space-y-2">
+                    {group.reasons.map((reason, index) => (
+                      <p key={`${group.label}-${index}`} className="text-sm">
+                        {reason}
+                      </p>
+                    ))}
+                  </div>
                 </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border bg-slate-50 p-4">
+              <div className="space-y-2">
+                {filteredReasons.map((reason, index) => (
+                  <p key={`${reason}-${index}`} className="text-sm">
+                    {reason}
+                  </p>
+                ))}
               </div>
-            ))
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

@@ -36,6 +36,7 @@ import {
 import { buildTextDemographicItems } from "./text-demographic-stats";
 import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
 import { buildScoreCompareSectionStats } from "./score-compare-stats";
+import { buildCombinedReasonBlocks } from "./combined-reason-stats";
 import {
   findPrecedingRankingQuestion,
   isRankGroupedTextSection,
@@ -189,7 +190,8 @@ function buildScoreSectionStats(
   responses: Response[],
   answers: Answer[],
   ageGroups: AgeGroup[],
-  customField: DemographicFieldConfig | null
+  customField: DemographicFieldConfig | null,
+  demographicFields: DemographicFieldConfig[]
 ): ScoreSectionStats {
   const scoreItems = scoreQuestions.flatMap((question) => {
     if (question.type === "score-compare") {
@@ -297,6 +299,12 @@ function buildScoreSectionStats(
         }
       : null,
     items: itemStats,
+    demographicFields,
+    combinedReasonBlocks: buildCombinedReasonBlocks(
+      scoreQuestions,
+      responses,
+      answers
+    ),
   };
 }
 
@@ -305,7 +313,8 @@ function buildRankingSectionStats(
   question: Question,
   responses: Response[],
   answers: Answer[],
-  ageGroups: AgeGroup[]
+  ageGroups: AgeGroup[],
+  demographicFields: DemographicFieldConfig[]
 ): RankingSectionStats {
   const config = question.config as RankingQuestionConfig;
   const total = responses.length;
@@ -388,6 +397,12 @@ function buildRankingSectionStats(
     questionId: question.id,
     ageGroups,
     combinations,
+    demographicFields,
+    combinedReasonBlocks: buildCombinedReasonBlocks(
+      [question],
+      responses,
+      answers
+    ),
   };
 }
 
@@ -421,6 +436,7 @@ function buildTextSectionStats(
     groupedByFinalDesignRank1: demographic.groupedByFinalDesignRank1,
     ageGroups,
     rank1Names: demographic.rank1Names,
+    demographicFields: survey.demographicFields,
     demographicItems: demographic.items.map((item) => {
       const question = textQuestions.find(
         (entry) => entry.id === item.questionId
@@ -491,7 +507,9 @@ function buildChoiceSectionStats(
   question: Question,
   precedingRanking: (GroupingQuestion & { id: string; title: string }) | null,
   responses: Response[],
-  answers: Answer[]
+  answers: Answer[],
+  ageGroups: AgeGroup[],
+  demographicFields: DemographicFieldConfig[]
 ): ChoiceSectionStats {
   const config = question.config as ChoiceQuestionConfig;
   const groupedByRank1 =
@@ -518,6 +536,13 @@ function buildChoiceSectionStats(
           ),
         },
       ],
+      demographicFields,
+      ageGroups,
+      combinedReasonBlocks: buildCombinedReasonBlocks(
+        [question],
+        responses,
+        answers
+      ),
     };
   }
 
@@ -598,6 +623,13 @@ function buildChoiceSectionStats(
         ? precedingRanking.title
         : "순위 선정",
     groups,
+    demographicFields,
+    ageGroups,
+    combinedReasonBlocks: buildCombinedReasonBlocks(
+      [question],
+      responses,
+      answers
+    ),
   };
 }
 
@@ -673,7 +705,8 @@ function buildSectionTables(
           responses,
           answers,
           ageGroups,
-          survey.demographicFields[0] ?? null
+          survey.demographicFields[0] ?? null,
+          survey.demographicFields
         ),
       });
       index += batch.length;
@@ -688,7 +721,8 @@ function buildSectionTables(
           question,
           responses,
           answers,
-          ageGroups
+          ageGroups,
+          survey.demographicFields
         ),
       });
       index += 1;
@@ -712,7 +746,9 @@ function buildSectionTables(
             question,
             rankingQuestion,
             responses,
-            answers
+            answers,
+            ageGroups,
+            survey.demographicFields
           ),
         });
       }

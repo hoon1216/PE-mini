@@ -6,6 +6,7 @@ import {
 import {
   buildTextDemographicItems,
   mergeTextDemographicItems,
+  mergeTextEntriesByRank1,
 } from "./text-demographic-stats";
 import type {
   Answer,
@@ -340,10 +341,12 @@ export function buildChoiceComparisonSectionStats(
     reasonAgeGroups
   );
   const mergedByRank1 = mergeTextDemographicItems(reasonDemographicData.items);
+  const entriesByRank1 = mergeTextEntriesByRank1(reasonDemographicData.items);
   const reasonDemographic = {
     ageGroups: reasonAgeGroups,
     rank1Names: reasonDemographicData.rank1Names,
     byRank1Demographic: mergedByRank1,
+    entriesByRank1,
   };
   const reasonGroups = reasonDemographic.rank1Names.map((rank1Name) => ({
     rank1Name,
@@ -366,6 +369,7 @@ export function buildChoiceComparisonSectionStats(
     reasonTitle: reasonSectionTitle(textQuestions),
     reasonDemographic,
     reasonGroups,
+    demographicFields: survey.demographicFields,
   };
 }
 

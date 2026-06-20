@@ -1,6 +1,8 @@
 import type {
   AgeGroup,
+  CombinedReasonBlockStats,
   DashboardStats,
+  DemographicFieldConfig,
   DemographicStats,
   Gender,
   RankingSectionStats,
@@ -21,7 +23,7 @@ import {
   dashboardTableTitle,
   type DashboardTableEntry,
 } from "@/lib/dashboard-layout";
-import { ScoreCompareReasonViewer } from "@/components/admin/score-compare-reason-viewer";
+import { TextReasonViewer } from "@/components/admin/text-reason-viewer";
 import type { ScoreCompareScoreStats } from "@/lib/types";
 
 const thClass =
@@ -265,83 +267,29 @@ function CustomFieldMetricSubHeaders({
   );
 }
 
-function TextDemographicMatrix({
+function CombinedReasonBlocks({
+  blocks,
+  demographicFields,
   ageGroups,
-  rank1Names,
-  byRank1Demographic,
-  showRank1Headers = true,
 }: {
+  blocks: CombinedReasonBlockStats[];
+  demographicFields: DemographicFieldConfig[];
   ageGroups: AgeGroup[];
-  rank1Names: string[];
-  byRank1Demographic: Record<string, Record<string, string[]>>;
-  showRank1Headers?: boolean;
 }) {
-  const genders: Gender[] = ["male", "female"];
-  const hideRank1 =
-    rank1Names.length === 1 && rank1Names[0] === "전체";
+  const visibleBlocks = blocks.filter((block) => block.entries.length > 0);
+  if (visibleBlocks.length === 0) return null;
 
   return (
     <div className="space-y-4">
-      {rank1Names.map((rank1Name) => {
-        const cells = byRank1Demographic[rank1Name] ?? {};
-
-        return (
-          <div key={rank1Name}>
-            {showRank1Headers && !hideRank1 && (
-              <h4 className="mb-2 text-base font-semibold">{rank1Name}</h4>
-            )}
-            <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
-              <thead>
-                <tr>
-                  {ageGroups.map((age) => (
-                    <th key={age} colSpan={2} className={thClass}>
-                      {AGE_GROUP_LABELS[age]}
-                    </th>
-                  ))}
-                </tr>
-                <tr>
-                  {ageGroups.flatMap((age) =>
-                    genders.map((gender) => (
-                      <th key={`${age}-${gender}`} className={thClass}>
-                        {GENDER_LABELS[gender]}
-                      </th>
-                    ))
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  {ageGroups.flatMap((age) =>
-                    genders.map((gender) => {
-                      const key = demographicKey(age, gender);
-                      const responses = cells[key] ?? [];
-
-                      return (
-                        <td
-                          key={`${rank1Name}-${key}`}
-                          className={`${tdClass} text-left align-top`}
-                        >
-                          {responses.length === 0 ? (
-                            <span className="text-muted">-</span>
-                          ) : (
-                            <div className="space-y-1">
-                              {responses.map((response, index) => (
-                                <p key={`${rank1Name}-${key}-${index}`}>
-                                  {response}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })
-                  )}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        );
-      })}
+      {visibleBlocks.map((block) => (
+        <TextReasonViewer
+          key={block.title}
+          title={block.title}
+          entries={block.entries}
+          demographicFields={demographicFields}
+          ageGroups={ageGroups}
+        />
+      ))}
     </div>
   );
 }
@@ -361,7 +309,8 @@ export function ScoreSectionTable({
   const totalColSpan = 4 + customColSpan + demoColSpan;
 
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-6">
+      <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] border-collapse border border-slate-300 text-sm">
         <thead>
           <tr>
@@ -467,6 +416,12 @@ export function ScoreSectionTable({
           ))}
         </tbody>
       </table>
+      </div>
+      <CombinedReasonBlocks
+        blocks={section.combinedReasonBlocks}
+        demographicFields={section.demographicFields}
+        ageGroups={section.ageGroups}
+      />
     </div>
   );
 }
@@ -483,7 +438,8 @@ export function RankingSectionTable({
   const headerLabel = tableLabel ?? section.sectionTitle;
 
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-6">
+      <div className="overflow-x-auto">
       <table className="w-full min-w-[900px] border-collapse border border-slate-300 text-sm">
         <thead>
           <tr>
@@ -566,6 +522,12 @@ export function RankingSectionTable({
           ))}
         </tbody>
       </table>
+      </div>
+      <CombinedReasonBlocks
+        blocks={section.combinedReasonBlocks}
+        demographicFields={section.demographicFields}
+        ageGroups={section.ageGroups}
+      />
     </div>
   );
 }
@@ -720,21 +682,35 @@ export function ChoiceComparisonSectionTable({
         </p>
       </div>
 
-      <div className="overflow-x-auto">
-        <p className="mb-2 text-sm font-medium">{section.reasonTitle}</p>
+      <div className="space-y-4">
+        <p className="text-sm font-medium">{section.reasonTitle}</p>
         {section.reasonDemographic.rank1Names.some(
           (name) => name !== "전체"
         ) && (
-          <p className="mb-2 text-xs text-muted">최종 디자인 1순위 기준</p>
+          <p className="text-xs text-muted">최종 디자인 1순위 기준</p>
         )}
         {section.reasonDemographic.ageGroups.length === 0 ? (
           <p className="text-sm text-muted">제출된 주관식 답변이 없습니다.</p>
         ) : (
-          <TextDemographicMatrix
-            ageGroups={section.reasonDemographic.ageGroups}
-            rank1Names={section.reasonDemographic.rank1Names}
-            byRank1Demographic={section.reasonDemographic.byRank1Demographic}
-          />
+          section.reasonDemographic.rank1Names.map((rank1Name) => {
+            const entries =
+              section.reasonDemographic.entriesByRank1[rank1Name] ?? [];
+            if (entries.length === 0) return null;
+
+            const hideRank1 =
+              section.reasonDemographic.rank1Names.length === 1 &&
+              rank1Name === "전체";
+
+            return (
+              <TextReasonViewer
+                key={rank1Name}
+                title={hideRank1 ? section.reasonTitle : rank1Name}
+                entries={entries}
+                demographicFields={section.demographicFields}
+                ageGroups={section.reasonDemographic.ageGroups}
+              />
+            );
+          })
         )}
       </div>
     </div>
@@ -753,17 +729,36 @@ export function ChoiceSectionTable({
   const hasOptions = section.groups.some((group) => group.options.length > 0);
 
   if (!hasOptions) {
+    const hasReasons = section.combinedReasonBlocks.some(
+      (block) => block.entries.length > 0
+    );
+
+    if (!hasReasons) {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted">{headerLabel}</p>
+          <p className="text-sm text-muted">선택된 답변이 없습니다.</p>
+        </div>
+      );
+    }
+
     return (
-      <div className="space-y-2">
+      <div className="space-y-6">
         <p className="text-sm font-medium text-muted">{headerLabel}</p>
         <p className="text-sm text-muted">선택된 답변이 없습니다.</p>
+        <CombinedReasonBlocks
+          blocks={section.combinedReasonBlocks}
+          demographicFields={section.demographicFields}
+          ageGroups={section.ageGroups}
+        />
       </div>
     );
   }
 
   if (section.groupedByRank1) {
     return (
-      <div className="overflow-x-auto">
+      <div className="space-y-6">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
           <thead>
             <tr>
@@ -800,6 +795,12 @@ export function ChoiceSectionTable({
             )}
           </tbody>
         </table>
+        </div>
+        <CombinedReasonBlocks
+          blocks={section.combinedReasonBlocks}
+          demographicFields={section.demographicFields}
+          ageGroups={section.ageGroups}
+        />
       </div>
     );
   }
@@ -807,7 +808,8 @@ export function ChoiceSectionTable({
   const options = section.groups[0]?.options ?? [];
 
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-6">
+      <div className="overflow-x-auto">
       <table className="w-full min-w-[320px] border-collapse border border-slate-300 text-sm">
         <thead>
           <tr>
@@ -833,6 +835,12 @@ export function ChoiceSectionTable({
           ))}
         </tbody>
       </table>
+      </div>
+      <CombinedReasonBlocks
+        blocks={section.combinedReasonBlocks}
+        demographicFields={section.demographicFields}
+        ageGroups={section.ageGroups}
+      />
     </div>
   );
 }
@@ -845,11 +853,11 @@ export function TextSectionTable({
   tableLabel?: string;
 }) {
   const headerLabel = tableLabel ?? "주관식";
+  const hideRank1 =
+    section.rank1Names.length === 1 && section.rank1Names[0] === "전체";
   const hasResponses = section.demographicItems.some((item) =>
-    section.rank1Names.some((rank1Name) =>
-      Object.values(item.byRank1Demographic[rank1Name] ?? {}).some(
-        (responses) => responses.length > 0
-      )
+    section.rank1Names.some(
+      (rank1Name) => (item.entriesByRank1[rank1Name] ?? []).length > 0
     )
   );
 
@@ -863,15 +871,30 @@ export function TextSectionTable({
         <p className="text-sm text-muted">제출된 주관식 답변이 없습니다.</p>
       ) : (
         section.demographicItems.map((item) => (
-          <div key={item.questionId} className="space-y-3">
-            {section.demographicItems.length > 1 && (
-              <p className="text-sm font-medium">{item.questionTitle}</p>
-            )}
-            <TextDemographicMatrix
-              ageGroups={section.ageGroups}
-              rank1Names={section.rank1Names}
-              byRank1Demographic={item.byRank1Demographic}
-            />
+          <div key={item.questionId} className="space-y-4">
+            {section.rank1Names.map((rank1Name) => {
+              const entries = item.entriesByRank1[rank1Name] ?? [];
+              if (entries.length === 0) return null;
+
+              const viewerTitle =
+                section.demographicItems.length > 1
+                  ? hideRank1
+                    ? item.questionTitle
+                    : `${rank1Name} — ${item.questionTitle}`
+                  : hideRank1
+                    ? headerLabel
+                    : rank1Name;
+
+              return (
+                <TextReasonViewer
+                  key={`${item.questionId}-${rank1Name}`}
+                  title={viewerTitle}
+                  entries={entries}
+                  demographicFields={section.demographicFields}
+                  ageGroups={section.ageGroups}
+                />
+              );
+            })}
           </div>
         ))
       )}
@@ -897,15 +920,26 @@ export function ScoreCompareSectionTable({
 
       {hasReasonCategories && (
         <div className="space-y-4">
-          {section.reasonCategories.map((category) => (
-            <ScoreCompareReasonViewer
-              key={category.category}
-              title={`${category.category} — 고득점 디자인 안 선호 이유`}
-              categories={[category]}
-              demographicFields={section.demographicFields}
-              ageGroups={section.ageGroups}
-            />
-          ))}
+          {section.reasonCategories.map((category) => {
+            const answerGroups = category.blocks
+              .filter((block) => block.entries.length > 0)
+              .map((block) => ({
+                label: `${category.category} · ${block.winningCombination}`,
+                entries: block.entries,
+              }));
+            const entries = answerGroups.flatMap((group) => group.entries);
+
+            return (
+              <TextReasonViewer
+                key={category.category}
+                title={`${category.category} — 고득점 디자인 안 선호 이유`}
+                entries={entries}
+                answerGroups={answerGroups}
+                demographicFields={section.demographicFields}
+                ageGroups={section.ageGroups}
+              />
+            );
+          })}
         </div>
       )}
     </div>

@@ -245,7 +245,7 @@ export function buildScoreCompareSectionStats(
       responses,
       answers
     ),
-    demographicFields: demographicFields.slice(0, 2),
+    demographicFields,
     ageGroups,
   };
 }

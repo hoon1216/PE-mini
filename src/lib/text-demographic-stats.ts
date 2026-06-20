@@ -12,6 +12,7 @@ import type {
   Response,
   SurveyDetail,
   TextDemographicItemStats,
+  TextReasonEntry,
 } from "./types";
 import { AGE_GROUP_LABELS, GENDER_LABELS } from "./types";
 
@@ -55,6 +56,8 @@ export function buildTextDemographicItems(
       effectiveRank1Names,
       ageGroups
     );
+    const entriesByRank1: Record<string, TextReasonEntry[]> =
+      Object.fromEntries(effectiveRank1Names.map((name) => [name, []]));
 
     for (const response of responses) {
       const rank1 = groupedByFinalDesignRank1
@@ -75,12 +78,19 @@ export function buildTextDemographicItems(
 
       const key = demographicKey(response.ageGroup, response.gender);
       byRank1Demographic[rank1]?.[key]?.push(value);
+      entriesByRank1[rank1]?.push({
+        reason: value,
+        gender: response.gender,
+        ageGroup: response.ageGroup,
+        demographicValues: response.demographicValues,
+      });
     }
 
     return {
       questionId: question.id,
       questionTitle: question.title,
       byRank1Demographic,
+      entriesByRank1,
     };
   });
 
@@ -89,6 +99,20 @@ export function buildTextDemographicItems(
     rank1Names: effectiveRank1Names,
     items,
   };
+}
+
+export function mergeTextEntriesByRank1(
+  items: TextDemographicItemStats[]
+): Record<string, TextReasonEntry[]> {
+  const merged: Record<string, TextReasonEntry[]> = {};
+
+  for (const item of items) {
+    for (const [rank1Name, entries] of Object.entries(item.entriesByRank1)) {
+      merged[rank1Name] = [...(merged[rank1Name] ?? []), ...entries];
+    }
+  }
+
+  return merged;
 }
 
 export function mergeTextDemographicItems(

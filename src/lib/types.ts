@@ -190,6 +190,8 @@ export interface ScoreSectionStats {
   ageGroups: AgeGroup[];
   customField: ScoreCustomFieldStats | null;
   items: ScoreItemStats[];
+  demographicFields: DemographicFieldConfig[];
+  combinedReasonBlocks: CombinedReasonBlockStats[];
 }
 
 export interface RankingCombinationStats {
@@ -212,6 +214,8 @@ export interface RankingSectionStats {
   questionId: string;
   ageGroups: AgeGroup[];
   combinations: RankingCombinationStats[];
+  demographicFields: DemographicFieldConfig[];
+  combinedReasonBlocks: CombinedReasonBlockStats[];
 }
 
 export interface TextResponseEntry {
@@ -234,10 +238,23 @@ export interface TextGroupStats {
   items: TextGroupItemStats[];
 }
 
+export interface TextReasonEntry {
+  reason: string;
+  gender: Gender | null;
+  ageGroup: AgeGroup | null;
+  demographicValues: Record<string, string>;
+}
+
+export interface CombinedReasonBlockStats {
+  title: string;
+  entries: TextReasonEntry[];
+}
+
 export interface TextDemographicItemStats {
   questionId: string;
   questionTitle: string;
   byRank1Demographic: Record<string, Record<string, string[]>>;
+  entriesByRank1: Record<string, TextReasonEntry[]>;
 }
 
 export interface TextSectionStats {
@@ -248,6 +265,7 @@ export interface TextSectionStats {
   groupedByFinalDesignRank1: boolean;
   ageGroups: AgeGroup[];
   rank1Names: string[];
+  demographicFields: DemographicFieldConfig[];
   demographicItems: TextDemographicItemStats[];
   groups: TextGroupStats[];
 }
@@ -271,6 +289,9 @@ export interface ChoiceSectionStats {
   groupedByRank1: boolean;
   rankingQuestionTitle: string | null;
   groups: ChoiceGroupStats[];
+  ageGroups: AgeGroup[];
+  demographicFields: DemographicFieldConfig[];
+  combinedReasonBlocks: CombinedReasonBlockStats[];
 }
 
 export type ComparisonSegment =
@@ -326,6 +347,7 @@ export interface ChoiceComparisonReasonDemographic {
   ageGroups: AgeGroup[];
   rank1Names: string[];
   byRank1Demographic: Record<string, Record<string, string[]>>;
+  entriesByRank1: Record<string, TextReasonEntry[]>;
 }
 
 export interface ChoiceComparisonSectionStats {
@@ -337,6 +359,7 @@ export interface ChoiceComparisonSectionStats {
   reasonTitle: string;
   reasonDemographic: ChoiceComparisonReasonDemographic;
   reasonGroups: ChoiceComparisonReasonGroup[];
+  demographicFields: DemographicFieldConfig[];
 }
 
 export interface ScoreCompareItemStats {
