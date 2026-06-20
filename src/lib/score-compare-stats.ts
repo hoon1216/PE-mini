@@ -22,6 +22,7 @@ import type {
   ScoreCompareSectionStats,
   ScoreReasonBlockStats,
   ScoreReasonCategoryStats,
+  CombinedReasonSectionStats,
   Section,
 } from "./types";
 import { AGE_GROUP_LABELS } from "./types";
@@ -221,6 +222,43 @@ export function buildScoreCompareReasonCategories(
         blocks: buildReasonBlocksForQuestion(question, responses, answers),
       };
     });
+}
+
+export function buildScoreCompareCombinedReasonSectionStats(
+  section: Section,
+  question: Question,
+  responses: Response[],
+  answers: Answer[],
+  ageGroups: AgeGroup[],
+  demographicFields: DemographicFieldConfig[]
+): CombinedReasonSectionStats | null {
+  if (!questionIncludesReason(question) || question.type !== "score-compare") {
+    return null;
+  }
+
+  const config = question.config as { category: string };
+  const blocks = buildReasonBlocksForQuestion(question, responses, answers);
+  if (blocks.length === 0) return null;
+
+  const answerGroups = blocks.map((block) => ({
+    label: `${config.category} · ${block.winningCombination}`,
+    entries: block.entries,
+  }));
+  const entries = answerGroups.flatMap((group) => group.entries);
+  if (entries.length === 0) return null;
+
+  const viewerTitle = `${config.category} — 고득점 디자인 안 선호 이유`;
+
+  return {
+    sectionId: section.id,
+    questionId: question.id,
+    tableLabel: viewerTitle,
+    viewerTitle,
+    entries,
+    answerGroups,
+    demographicFields,
+    ageGroups,
+  };
 }
 
 export function buildScoreCompareSectionStats(

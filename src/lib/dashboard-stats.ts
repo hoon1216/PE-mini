@@ -35,7 +35,7 @@ import {
 } from "./choice-comparison-stats";
 import { buildTextDemographicItems } from "./text-demographic-stats";
 import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
-import { buildScoreCompareSectionStats } from "./score-compare-stats";
+import { buildScoreCompareSectionStats, buildScoreCompareCombinedReasonSectionStats } from "./score-compare-stats";
 import { buildCombinedReasonBlocks, buildCombinedReasonSectionStats } from "./combined-reason-stats";
 import { questionIncludesReason } from "./combined-reason-utils";
 import {
@@ -624,6 +624,44 @@ function buildChoiceSectionStats(
   };
 }
 
+function pushCombinedReasonTable(
+  tables: DashboardStats["sectionGroups"][number]["tables"],
+  section: Section,
+  question: Question,
+  responses: Response[],
+  answers: Answer[],
+  ageGroups: AgeGroup[],
+  demographicFields: DemographicFieldConfig[]
+) {
+  if (!questionIncludesReason(question)) return;
+
+  const reasonStats =
+    question.type === "score-compare"
+      ? buildScoreCompareCombinedReasonSectionStats(
+          section,
+          question,
+          responses,
+          answers,
+          ageGroups,
+          demographicFields
+        )
+      : buildCombinedReasonSectionStats(
+          section,
+          question,
+          responses,
+          answers,
+          ageGroups,
+          demographicFields
+        );
+
+  if (reasonStats && reasonStats.entries.length > 0) {
+    tables.push({
+      type: "combined-reason",
+      data: reasonStats,
+    });
+  }
+}
+
 function buildSectionTables(
   survey: SurveyDetail,
   section: Section & { questions: Question[] },
@@ -675,6 +713,17 @@ function buildSectionTables(
           ageGroups
         ),
       });
+      for (const batchQuestion of batch) {
+        pushCombinedReasonTable(
+          tables,
+          section,
+          batchQuestion,
+          responses,
+          answers,
+          ageGroups,
+          survey.demographicFields
+        );
+      }
       index += batch.length;
       continue;
     }
@@ -700,6 +749,17 @@ function buildSectionTables(
           survey.demographicFields
         ),
       });
+      for (const batchQuestion of batch) {
+        pushCombinedReasonTable(
+          tables,
+          section,
+          batchQuestion,
+          responses,
+          answers,
+          ageGroups,
+          survey.demographicFields
+        );
+      }
       index += batch.length;
       continue;
     }
@@ -716,6 +776,15 @@ function buildSectionTables(
           survey.demographicFields
         ),
       });
+      pushCombinedReasonTable(
+        tables,
+        section,
+        question,
+        responses,
+        answers,
+        ageGroups,
+        survey.demographicFields
+      );
       index += 1;
       continue;
     }
@@ -729,6 +798,15 @@ function buildSectionTables(
           });
           comparisonAdded = true;
         }
+        pushCombinedReasonTable(
+          tables,
+          section,
+          question,
+          responses,
+          answers,
+          ageGroups,
+          survey.demographicFields
+        );
       } else {
         tables.push({
           type: "choice",
@@ -742,22 +820,15 @@ function buildSectionTables(
             survey.demographicFields
           ),
         });
-        if (questionIncludesReason(question)) {
-          const reasonStats = buildCombinedReasonSectionStats(
-            section,
-            question,
-            responses,
-            answers,
-            ageGroups,
-            survey.demographicFields
-          );
-          if (reasonStats) {
-            tables.push({
-              type: "combined-reason",
-              data: reasonStats,
-            });
-          }
-        }
+        pushCombinedReasonTable(
+          tables,
+          section,
+          question,
+          responses,
+          answers,
+          ageGroups,
+          survey.demographicFields
+        );
       }
       index += 1;
       continue;
@@ -765,6 +836,20 @@ function buildSectionTables(
 
     if (question.type === "text") {
       if (comparisonStats) {
+        if (!textAdded && textQuestions.length > 0) {
+          tables.push({
+            type: "text",
+            data: buildTextSectionStats(
+              survey,
+              section,
+              textQuestions,
+              responses,
+              answers,
+              ageGroups
+            ),
+          });
+          textAdded = true;
+        }
         index += 1;
         continue;
       }

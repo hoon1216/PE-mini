@@ -256,6 +256,7 @@ export interface CombinedReasonSectionStats {
   tableLabel: string;
   viewerTitle: string;
   entries: TextReasonEntry[];
+  answerGroups?: Array<{ label: string; entries: TextReasonEntry[] }>;
   demographicFields: DemographicFieldConfig[];
   ageGroups: AgeGroup[];
 }

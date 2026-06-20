@@ -145,7 +145,7 @@ function writeScoreCompareTable(
   writer: SheetWriter,
   table: Extract<DashboardSectionTable, { type: "score-compare" }>
 ) {
-  const { scoreStats, sectionTitle, reasonCategories } = table.data;
+  const { scoreStats, sectionTitle } = table.data;
   const { segments, items } = scoreStats;
 
   writer.addTitle(sectionTitle);
@@ -179,24 +179,6 @@ function writeScoreCompareTable(
   });
 
   writer.addBlank();
-
-  for (const category of reasonCategories) {
-    writer.addRows([[`${category.category} — 고득점 디자인 안 선호 이유`]]);
-
-    for (const block of category.blocks) {
-      writer.addRows([[block.winningCombination]]);
-      writer.addRows([
-        block.entries.map((entry) => {
-          const customLabels = table.data.demographicFields
-            .map((field) => entry.demographicValues[field.id] ?? "-")
-            .join(" / ");
-          const gender = entry.gender ? GENDER_LABELS[entry.gender] : "-";
-          const age = entry.ageGroup ? AGE_GROUP_LABELS[entry.ageGroup] : "-";
-          return `[${gender} / ${age} / ${customLabels}] ${entry.reason}`;
-        }),
-      ]);
-    }
-  }
 
   writer.addBlank(2);
 }

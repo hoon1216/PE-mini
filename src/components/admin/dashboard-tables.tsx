@@ -1,6 +1,5 @@
 import type {
   AgeGroup,
-  CombinedReasonBlockStats,
   CombinedReasonSectionStats,
   DashboardStats,
   DemographicFieldConfig,
@@ -268,33 +267,6 @@ function CustomFieldMetricSubHeaders({
   );
 }
 
-function CombinedReasonBlocks({
-  blocks,
-  demographicFields,
-  ageGroups,
-}: {
-  blocks: CombinedReasonBlockStats[];
-  demographicFields: DemographicFieldConfig[];
-  ageGroups: AgeGroup[];
-}) {
-  const visibleBlocks = blocks.filter((block) => block.entries.length > 0);
-  if (visibleBlocks.length === 0) return null;
-
-  return (
-    <div className="space-y-4">
-      {visibleBlocks.map((block) => (
-        <TextReasonViewer
-          key={block.title}
-          title={block.title}
-          entries={block.entries}
-          demographicFields={demographicFields}
-          ageGroups={ageGroups}
-        />
-      ))}
-    </div>
-  );
-}
-
 export function CombinedReasonSectionTable({
   section,
   tableLabel,
@@ -310,31 +282,10 @@ export function CombinedReasonSectionTable({
       <TextReasonViewer
         title={section.viewerTitle}
         entries={section.entries}
+        answerGroups={section.answerGroups}
         demographicFields={section.demographicFields}
         ageGroups={section.ageGroups}
       />
-    </div>
-  );
-}
-
-function CombinedReasonSections({
-  sections,
-}: {
-  sections: CombinedReasonSectionStats[];
-}) {
-  const visibleSections = sections.filter(
-    (section) => section.entries.length > 0
-  );
-  if (visibleSections.length === 0) return null;
-
-  return (
-    <div className="space-y-5">
-      {visibleSections.map((section) => (
-        <CombinedReasonSectionTable
-          key={section.questionId}
-          section={section}
-        />
-      ))}
     </div>
   );
 }
@@ -462,11 +413,6 @@ export function ScoreSectionTable({
         </tbody>
       </table>
       </div>
-      <CombinedReasonBlocks
-        blocks={section.combinedReasonBlocks}
-        demographicFields={section.demographicFields}
-        ageGroups={section.ageGroups}
-      />
     </div>
   );
 }
@@ -568,11 +514,6 @@ export function RankingSectionTable({
         </tbody>
       </table>
       </div>
-      <CombinedReasonBlocks
-        blocks={section.combinedReasonBlocks}
-        demographicFields={section.demographicFields}
-        ageGroups={section.ageGroups}
-      />
     </div>
   );
 }
@@ -725,66 +666,6 @@ export function ChoiceComparisonSectionTable({
             : `각 셀은 해당 구간 응답자 중 ${section.rankingQuestionTitle} 문항의 해당 선택지를 고른 비율(%)입니다.`}{" "}
           마우스를 올리면 선택 인원/응답 인원을 볼 수 있습니다.
         </p>
-      </div>
-
-      <div className="space-y-4">
-        {(() => {
-          const hasTextReasons = section.reasonDemographic.rank1Names.some(
-            (rank1Name) =>
-              (section.reasonDemographic.entriesByRank1[rank1Name] ?? [])
-                .length > 0
-          );
-          const hasCombinedReasons = section.combinedReasonSections.some(
-            (reasonSection) => reasonSection.entries.length > 0
-          );
-
-          if (!hasTextReasons && !hasCombinedReasons) {
-            return (
-              <p className="text-sm text-muted">
-                제출된 주관식 답변이 없습니다.
-              </p>
-            );
-          }
-
-          return (
-            <>
-              {hasTextReasons && (
-                <>
-                  <p className="text-sm font-medium">{section.reasonTitle}</p>
-                  {section.reasonDemographic.rank1Names.some(
-                    (name) => name !== "전체"
-                  ) && (
-                    <p className="text-xs text-muted">
-                      최종 디자인 1순위 기준
-                    </p>
-                  )}
-                  {section.reasonDemographic.rank1Names.map((rank1Name) => {
-                    const entries =
-                      section.reasonDemographic.entriesByRank1[rank1Name] ?? [];
-                    if (entries.length === 0) return null;
-
-                    const hideRank1 =
-                      section.reasonDemographic.rank1Names.length === 1 &&
-                      rank1Name === "전체";
-
-                    return (
-                      <TextReasonViewer
-                        key={rank1Name}
-                        title={hideRank1 ? section.reasonTitle : rank1Name}
-                        entries={entries}
-                        demographicFields={section.demographicFields}
-                        ageGroups={section.ageGroups}
-                      />
-                    );
-                  })}
-                </>
-              )}
-              <CombinedReasonSections
-                sections={section.combinedReasonSections}
-              />
-            </>
-          );
-        })()}
       </div>
     </div>
   );
@@ -948,42 +829,11 @@ export function ScoreCompareSectionTable({
 }: {
   section: ScoreCompareSectionStats;
 }) {
-  const hasReasonCategories = section.reasonCategories.some((category) =>
-    category.blocks.some((block) => block.entries.length > 0)
-  );
-
   return (
-    <div className="space-y-6">
-      <ScoreCompareScoreTable
-        sectionTitle={section.sectionTitle}
-        scoreStats={section.scoreStats}
-      />
-
-      {hasReasonCategories && (
-        <div className="space-y-4">
-          {section.reasonCategories.map((category) => {
-            const answerGroups = category.blocks
-              .filter((block) => block.entries.length > 0)
-              .map((block) => ({
-                label: `${category.category} · ${block.winningCombination}`,
-                entries: block.entries,
-              }));
-            const entries = answerGroups.flatMap((group) => group.entries);
-
-            return (
-              <TextReasonViewer
-                key={category.category}
-                title={`${category.category} — 고득점 디자인 안 선호 이유`}
-                entries={entries}
-                answerGroups={answerGroups}
-                demographicFields={section.demographicFields}
-                ageGroups={section.ageGroups}
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
+    <ScoreCompareScoreTable
+      sectionTitle={section.sectionTitle}
+      scoreStats={section.scoreStats}
+    />
   );
 }
 

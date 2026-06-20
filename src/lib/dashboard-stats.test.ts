@@ -736,4 +736,148 @@ describe("computeDashboardStats", () => {
     const tableTypes = stats.sectionGroups[0].tables.map((table) => table.type);
     expect(tableTypes).toEqual(["score-compare", "score"]);
   });
+
+  it("places combined reason before standalone text in choice comparison sections", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-design",
+          surveyId: "survey-1",
+          title: "디자인 선호",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-choice",
+              sectionId: "section-design",
+              title: "1안 선택",
+              description: null,
+              type: "choice",
+              config: {
+                options: ["1안", "2안"],
+                selectionMode: "single",
+                includeReason: true,
+              },
+              sortOrder: 0,
+            },
+            {
+              id: "q-text",
+              sectionId: "section-design",
+              title: "추가 의견",
+              description: null,
+              type: "text",
+              config: { maxLength: 500 },
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    const responses = createResponses();
+    const answers: Answer[] = [
+      {
+        id: "c1",
+        responseId: "resp-1",
+        questionId: "q-choice",
+        value: JSON.stringify({ selected: ["1안"], reason: "선택 이유 A" }),
+      },
+      {
+        id: "c2",
+        responseId: "resp-2",
+        questionId: "q-choice",
+        value: JSON.stringify({ selected: ["2안"], reason: "선택 이유 B" }),
+      },
+      {
+        id: "t1",
+        responseId: "resp-1",
+        questionId: "q-text",
+        value: "주관식 A",
+      },
+      {
+        id: "t2",
+        responseId: "resp-2",
+        questionId: "q-text",
+        value: "주관식 B",
+      },
+    ];
+
+    const stats = computeDashboardStats(survey, responses, answers);
+    const tableTypes = stats.sectionGroups[0].tables.map((table) => table.type);
+
+    expect(tableTypes).toEqual(["choice-comparison", "combined-reason", "text"]);
+
+    const combinedReason = stats.sectionGroups[0].tables.find(
+      (table) => table.type === "combined-reason"
+    );
+    expect(combinedReason?.type).toBe("combined-reason");
+    if (combinedReason?.type === "combined-reason") {
+      expect(combinedReason.data.questionId).toBe("q-choice");
+    }
+  });
+
+  it("places score-compare combined reason immediately after score-compare table", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-mixed",
+          surveyId: "survey-1",
+          title: "혼합",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-score-compare",
+              sectionId: "section-mixed",
+              title: "최종",
+              description: null,
+              type: "score-compare",
+              config: {
+                category: "최종 디자인",
+                combinations: ["A안", "B안"],
+                includeReason: true,
+              },
+              sortOrder: 0,
+            },
+            {
+              id: "q-score-color",
+              sectionId: "section-mixed",
+              title: "색상",
+              description: null,
+              type: "score",
+              config: { category: "색상", combination: "레드" },
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    const stats = computeDashboardStats(
+      survey,
+      createResponses(),
+      [
+        {
+          id: "a1",
+          responseId: "resp-1",
+          questionId: "q-score-compare",
+          value: JSON.stringify({
+            scores: { "A안": 6, "B안": 4 },
+            reason: "A안 선호",
+          }),
+        },
+        {
+          id: "a2",
+          responseId: "resp-1",
+          questionId: "q-score-color",
+          value: "5",
+        },
+      ]
+    );
+
+    const tableTypes = stats.sectionGroups[0].tables.map((table) => table.type);
+    expect(tableTypes).toEqual(["score-compare", "combined-reason", "score"]);
+  });
 });
