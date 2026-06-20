@@ -141,18 +141,17 @@ function ChoiceDashboardTable({
   sectionTitle: string;
   dashboardStats: NonNullable<ChoiceSectionStats["dashboardStats"]>;
 }) {
-  const { segments, items, showCategoryColumn } = dashboardStats;
+  const { segments, items } = dashboardStats;
+  const showCategoryColumn = items.some((item) => Boolean(item.category));
   const segmentGroups = groupSegmentHeaderSpans(segments);
-  const categoryRowSpans = getCategoryRowSpans(
-    items.map((item) => ({ category: item.category ?? "" }))
-  );
+  const categoryRowSpans = getCategoryRowSpans(items);
   const itemLabelRowSpans = getChoiceItemLabelRowSpans(items);
   const labelColCount = showCategoryColumn ? 3 : 2;
   const totalColSpan = labelColCount + segments.length;
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[840px] border-collapse border border-slate-300 text-sm">
+      <table className="w-max min-w-full border-collapse border border-slate-300 text-sm">
         <thead>
           <tr>
             <th colSpan={totalColSpan} className={thClass}>
@@ -192,34 +191,47 @@ function ChoiceDashboardTable({
         <tbody>
           {items.map((item, index) => (
             <tr key={item.itemId}>
-              {showCategoryColumn &&
-                item.category &&
-                categoryRowSpans[index] !== null && (
-                  <td
-                    rowSpan={categoryRowSpans[index]!}
-                    className={`${tdClass} align-middle font-medium`}
-                  >
-                    {item.category}
-                  </td>
-                )}
-              {showCategoryColumn && !item.category && itemLabelRowSpans[index] !== null && (
-                <td
-                  colSpan={2}
-                  rowSpan={itemLabelRowSpans[index]!}
-                  className={`${tdClass} align-middle font-medium`}
-                >
-                  {item.itemLabel}
-                </td>
-              )}
-              {(!showCategoryColumn || item.category) &&
+              {showCategoryColumn ? (
+                item.category ? (
+                  <>
+                    {categoryRowSpans[index] !== null && (
+                      <td
+                        rowSpan={categoryRowSpans[index]!}
+                        className={`${tdClass} align-middle font-medium`}
+                      >
+                        {item.category}
+                      </td>
+                    )}
+                    {itemLabelRowSpans[index] !== null && (
+                      <td
+                        rowSpan={itemLabelRowSpans[index]!}
+                        className={`${tdClass} text-left align-middle`}
+                      >
+                        {item.itemLabel}
+                      </td>
+                    )}
+                  </>
+                ) : (
+                  itemLabelRowSpans[index] !== null && (
+                    <td
+                      colSpan={2}
+                      rowSpan={itemLabelRowSpans[index]!}
+                      className={`${tdClass} text-left align-middle font-medium`}
+                    >
+                      {item.itemLabel}
+                    </td>
+                  )
+                )
+              ) : (
                 itemLabelRowSpans[index] !== null && (
                   <td
                     rowSpan={itemLabelRowSpans[index]!}
-                    className={`${tdClass} text-left align-middle`}
+                    className={`${tdClass} text-left align-middle font-medium`}
                   >
                     {item.itemLabel}
                   </td>
-                )}
+                )
+              )}
               <td className={`${tdClass} text-left`}>{item.option}</td>
               {segments.map((segment) => (
                 <td key={`${item.itemId}-${segment.key}`} className={tdClass}>

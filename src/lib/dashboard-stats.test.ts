@@ -919,4 +919,69 @@ describe("computeDashboardStats", () => {
     const tableTypes = stats.sectionGroups[0].tables.map((table) => table.type);
     expect(tableTypes).toEqual(["score-compare", "combined-reason", "score"]);
   });
+
+  it("splits choice tables when category presence differs", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-preference",
+          surveyId: "survey-1",
+          title: "선호도 섹션",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-with-category",
+              sectionId: "section-preference",
+              title: "색상",
+              description: null,
+              type: "choice",
+              config: {
+                category: "요소",
+                options: ["레드"],
+                selectionMode: "single",
+              },
+              sortOrder: 0,
+            },
+            {
+              id: "q-without-category",
+              sectionId: "section-preference",
+              title: "선호하는 안 선택",
+              description: null,
+              type: "choice",
+              config: {
+                category: "없음",
+                options: ["선택지 A", "선택지 B"],
+                selectionMode: "single",
+              },
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    const stats = computeDashboardStats(survey, createResponses(), []);
+    const choiceTables = stats.sectionGroups[0].tables.filter(
+      (table) => table.type === "choice"
+    );
+
+    expect(choiceTables).toHaveLength(2);
+    if (
+      choiceTables[0]?.type === "choice" &&
+      choiceTables[1]?.type === "choice"
+    ) {
+      expect(choiceTables[0].data.dashboardStats?.showCategoryColumn).toBe(
+        true
+      );
+      expect(choiceTables[1].data.dashboardStats?.showCategoryColumn).toBe(
+        false
+      );
+      expect(choiceTables[1].data.dashboardStats?.items[0]).toMatchObject({
+        itemLabel: "선호하는 안 선택",
+        option: "선택지 A",
+      });
+    }
+  });
 });

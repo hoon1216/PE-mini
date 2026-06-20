@@ -18,7 +18,11 @@ import type {
   TextSectionStats,
   ChoiceQuestionConfig,
 } from "./types";
-import { buildChoiceSectionStats, isChoiceGroupedByRank1 } from "./choice-dashboard-stats";
+import {
+  buildChoiceSectionStats,
+  hasChoiceDashboardCategory,
+  isChoiceGroupedByRank1,
+} from "./choice-dashboard-stats";
 import {
   demographicKey,
   getPresentAgeGroups,
@@ -617,10 +621,13 @@ function buildSectionTables(
 
     if (question.type === "choice") {
       const batch = [question];
+      const batchHasCategory = hasChoiceDashboardCategory(question);
       while (
         index + batch.length < questions.length &&
         questions[index + batch.length].type === "choice" &&
-        !isChoiceGroupedByRank1(section, questions[index + batch.length])
+        !isChoiceGroupedByRank1(section, questions[index + batch.length]) &&
+        hasChoiceDashboardCategory(questions[index + batch.length]) ===
+          batchHasCategory
       ) {
         batch.push(questions[index + batch.length]);
       }

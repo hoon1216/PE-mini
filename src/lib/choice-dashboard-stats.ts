@@ -96,6 +96,10 @@ function choiceDashboardCategory(
   return { category: null, itemLabel };
 }
 
+export function hasChoiceDashboardCategory(question: Question): boolean {
+  return choiceDashboardCategory(question).category !== null;
+}
+
 function buildChoiceDashboardItems(
   choiceQuestions: Question[],
   responses: Response[],
@@ -153,7 +157,7 @@ export function buildChoiceDashboardStats(
   return {
     segments,
     items,
-    showCategoryColumn: items.some((item) => item.category !== null),
+    showCategoryColumn: items.some((item) => Boolean(item.category)),
   };
 }
 
