@@ -24,6 +24,7 @@ import {
   type DashboardTableEntry,
 } from "@/lib/dashboard-layout";
 import { formatChoiceSegmentCell, getChoiceItemLabelRowSpans } from "@/lib/choice-dashboard-stats";
+import { TextReasonViewer } from "@/components/admin/text-reason-viewer";
 import type { ScoreCompareScoreStats } from "@/lib/types";
 
 const thClass =

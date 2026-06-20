@@ -818,7 +818,7 @@ describe("computeDashboardStats", () => {
     const stats = computeDashboardStats(survey, responses, answers);
     const tableTypes = stats.sectionGroups[0].tables.map((table) => table.type);
 
-    expect(tableTypes).toEqual(["choice-comparison", "combined-reason", "text"]);
+    expect(tableTypes).toEqual(["choice", "combined-reason", "text"]);
 
     const combinedReason = stats.sectionGroups[0].tables.find(
       (table) => table.type === "combined-reason"
@@ -826,6 +826,18 @@ describe("computeDashboardStats", () => {
     expect(combinedReason?.type).toBe("combined-reason");
     if (combinedReason?.type === "combined-reason") {
       expect(combinedReason.data.questionId).toBe("q-choice");
+    }
+
+    const choiceTable = stats.sectionGroups[0].tables.find(
+      (table) => table.type === "choice"
+    );
+    expect(choiceTable?.type).toBe("choice");
+    if (choiceTable?.type === "choice") {
+      expect(choiceTable.data.dashboardStats).not.toBeNull();
+      expect(choiceTable.data.dashboardStats?.items[0]).toMatchObject({
+        itemLabel: "1안 선택",
+        option: "1안",
+      });
     }
   });
 

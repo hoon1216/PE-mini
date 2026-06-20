@@ -24,9 +24,6 @@ import {
   parseRankingAnswer,
   scoreCustomFieldKey,
 } from "./demographic-utils";
-import {
-  buildChoiceComparisonSectionStats,
-} from "./choice-comparison-stats";
 import { buildTextDemographicItems } from "./text-demographic-stats";
 import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
 import { buildScoreCompareSectionStats, buildScoreCompareCombinedReasonSectionStats } from "./score-compare-stats";
@@ -491,15 +488,8 @@ function buildSectionTables(
   const questions = [...section.questions].sort(
     (a, b) => a.sortOrder - b.sortOrder
   );
-  const comparisonStats = buildChoiceComparisonSectionStats(
-    survey,
-    section,
-    responses,
-    answers
-  );
   const textQuestions = questions.filter((question) => question.type === "text");
 
-  let comparisonAdded = false;
   let textAdded = false;
   let index = 0;
 
@@ -603,82 +593,42 @@ function buildSectionTables(
     }
 
     if (question.type === "choice") {
-      if (comparisonStats) {
-        if (!comparisonAdded) {
-          tables.push({
-            type: "choice-comparison",
-            data: comparisonStats,
-          });
-          comparisonAdded = true;
-        }
+      const batch = [question];
+      while (
+        index + batch.length < questions.length &&
+        questions[index + batch.length].type === "choice" &&
+        !isChoiceGroupedByRank1(section, questions[index + batch.length])
+      ) {
+        batch.push(questions[index + batch.length]);
+      }
+
+      tables.push({
+        type: "choice",
+        data: buildChoiceSectionStats(
+          section,
+          batch,
+          responses,
+          answers,
+          ageGroups,
+          survey.demographicFields
+        ),
+      });
+      for (const batchQuestion of batch) {
         pushCombinedReasonTable(
           tables,
           section,
-          question,
+          batchQuestion,
           responses,
           answers,
           ageGroups,
           survey.demographicFields
         );
-        index += 1;
-        continue;
-      } else {
-        const batch = [question];
-        while (
-          index + batch.length < questions.length &&
-          questions[index + batch.length].type === "choice" &&
-          !isChoiceGroupedByRank1(section, questions[index + batch.length])
-        ) {
-          batch.push(questions[index + batch.length]);
-        }
-
-        tables.push({
-          type: "choice",
-          data: buildChoiceSectionStats(
-            section,
-            batch,
-            responses,
-            answers,
-            ageGroups,
-            survey.demographicFields
-          ),
-        });
-        for (const batchQuestion of batch) {
-          pushCombinedReasonTable(
-            tables,
-            section,
-            batchQuestion,
-            responses,
-            answers,
-            ageGroups,
-            survey.demographicFields
-          );
-        }
-        index += batch.length;
-        continue;
       }
+      index += batch.length;
+      continue;
     }
 
     if (question.type === "text") {
-      if (comparisonStats) {
-        if (!textAdded && textQuestions.length > 0) {
-          tables.push({
-            type: "text",
-            data: buildTextSectionStats(
-              survey,
-              section,
-              textQuestions,
-              responses,
-              answers,
-              ageGroups
-            ),
-          });
-          textAdded = true;
-        }
-        index += 1;
-        continue;
-      }
-
       if (!textAdded && textQuestions.length > 0) {
         tables.push({
           type: "text",
