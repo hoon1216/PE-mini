@@ -148,10 +148,27 @@ function ChoiceDashboardTable({
   const itemLabelRowSpans = getChoiceItemLabelRowSpans(items);
   const labelColCount = showCategoryColumn ? 3 : 2;
   const totalColSpan = labelColCount + segments.length;
+  const labelWidthShare = showCategoryColumn ? 36 : 28;
+  const labelColWidth =
+    labelColCount > 0 ? labelWidthShare / labelColCount : 0;
+  const segmentColWidth =
+    segments.length > 0
+      ? (100 - labelWidthShare) / segments.length
+      : 0;
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-max border-collapse border border-slate-300 text-sm">
+      <table className="w-full min-w-[480px] table-fixed border-collapse border border-slate-300 text-sm">
+        <colgroup>
+          {showCategoryColumn && (
+            <col style={{ width: `${labelColWidth}%` }} />
+          )}
+          <col style={{ width: `${labelColWidth}%` }} />
+          <col style={{ width: `${labelColWidth}%` }} />
+          {segments.map((segment) => (
+            <col key={segment.key} style={{ width: `${segmentColWidth}%` }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th colSpan={totalColSpan} className={thClass}>
