@@ -360,6 +360,8 @@ export interface ChoiceComparisonSectionStats {
   reasonDemographic: ChoiceComparisonReasonDemographic;
   reasonGroups: ChoiceComparisonReasonGroup[];
   demographicFields: DemographicFieldConfig[];
+  ageGroups: AgeGroup[];
+  combinedReasonBlocks: CombinedReasonBlockStats[];
 }
 
 export interface ScoreCompareItemStats {

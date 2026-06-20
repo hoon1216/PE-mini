@@ -683,35 +683,65 @@ export function ChoiceComparisonSectionTable({
       </div>
 
       <div className="space-y-4">
-        <p className="text-sm font-medium">{section.reasonTitle}</p>
-        {section.reasonDemographic.rank1Names.some(
-          (name) => name !== "전체"
-        ) && (
-          <p className="text-xs text-muted">최종 디자인 1순위 기준</p>
-        )}
-        {section.reasonDemographic.ageGroups.length === 0 ? (
-          <p className="text-sm text-muted">제출된 주관식 답변이 없습니다.</p>
-        ) : (
-          section.reasonDemographic.rank1Names.map((rank1Name) => {
-            const entries =
-              section.reasonDemographic.entriesByRank1[rank1Name] ?? [];
-            if (entries.length === 0) return null;
+        {(() => {
+          const hasTextReasons = section.reasonDemographic.rank1Names.some(
+            (rank1Name) =>
+              (section.reasonDemographic.entriesByRank1[rank1Name] ?? [])
+                .length > 0
+          );
+          const hasCombinedReasons = section.combinedReasonBlocks.some(
+            (block) => block.entries.length > 0
+          );
 
-            const hideRank1 =
-              section.reasonDemographic.rank1Names.length === 1 &&
-              rank1Name === "전체";
-
+          if (!hasTextReasons && !hasCombinedReasons) {
             return (
-              <TextReasonViewer
-                key={rank1Name}
-                title={hideRank1 ? section.reasonTitle : rank1Name}
-                entries={entries}
-                demographicFields={section.demographicFields}
-                ageGroups={section.reasonDemographic.ageGroups}
-              />
+              <p className="text-sm text-muted">
+                제출된 주관식 답변이 없습니다.
+              </p>
             );
-          })
-        )}
+          }
+
+          return (
+            <>
+              {hasTextReasons && (
+                <>
+                  <p className="text-sm font-medium">{section.reasonTitle}</p>
+                  {section.reasonDemographic.rank1Names.some(
+                    (name) => name !== "전체"
+                  ) && (
+                    <p className="text-xs text-muted">
+                      최종 디자인 1순위 기준
+                    </p>
+                  )}
+                  {section.reasonDemographic.rank1Names.map((rank1Name) => {
+                    const entries =
+                      section.reasonDemographic.entriesByRank1[rank1Name] ?? [];
+                    if (entries.length === 0) return null;
+
+                    const hideRank1 =
+                      section.reasonDemographic.rank1Names.length === 1 &&
+                      rank1Name === "전체";
+
+                    return (
+                      <TextReasonViewer
+                        key={rank1Name}
+                        title={hideRank1 ? section.reasonTitle : rank1Name}
+                        entries={entries}
+                        demographicFields={section.demographicFields}
+                        ageGroups={section.ageGroups}
+                      />
+                    );
+                  })}
+                </>
+              )}
+              <CombinedReasonBlocks
+                blocks={section.combinedReasonBlocks}
+                demographicFields={section.demographicFields}
+                ageGroups={section.ageGroups}
+              />
+            </>
+          );
+        })()}
       </div>
     </div>
   );

@@ -224,6 +224,90 @@ describe("choice-comparison-stats", () => {
     ).toEqual(["균형잡혀 있고 심플함이 좋다"]);
   });
 
+  it("includes combined includeReason answers in comparison sections", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-pref",
+          surveyId: "survey-1",
+          title: "선호도 섹션",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-choice",
+              sectionId: "section-pref",
+              title: "안 선택 문항",
+              description: null,
+              type: "choice",
+              config: {
+                options: ["선택지 A", "선택지 B", "선택지 C"],
+                selectionMode: "single",
+                includeReason: true,
+              },
+              sortOrder: 0,
+            },
+            {
+              id: "q-text",
+              sectionId: "section-pref",
+              title: "이유 기술 문항",
+              description: null,
+              type: "text",
+              config: { maxLength: 500 },
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    const section = survey.sections[0];
+    const responses: Response[] = [
+      {
+        id: "resp-1",
+        surveyId: "survey-1",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        participantName: "A",
+        gender: "male",
+        ageGroup: "20s",
+        demographicValues: {},
+      },
+    ];
+    const answers: Answer[] = [
+      {
+        id: "a1",
+        responseId: "resp-1",
+        questionId: "q-choice",
+        value: JSON.stringify({
+          selected: ["선택지 A"],
+          reason: "연결된 선택 이유",
+        }),
+      },
+      {
+        id: "a2",
+        responseId: "resp-1",
+        questionId: "q-text",
+        value: "독립 이유 기술 답변",
+      },
+    ];
+
+    const stats = buildChoiceComparisonSectionStats(
+      survey,
+      section,
+      responses,
+      answers
+    );
+
+    expect(stats?.combinedReasonBlocks).toHaveLength(1);
+    expect(stats?.combinedReasonBlocks[0].entries[0].reason).toBe(
+      "연결된 선택 이유"
+    );
+    expect(
+      stats?.reasonDemographic.entriesByRank1["전체"][0].reason
+    ).toBe("독립 이유 기술 답변");
+  });
+
   it("builds comparison matrix and reason groups", () => {
     const survey = createSurvey();
     const section = survey.sections[1];
