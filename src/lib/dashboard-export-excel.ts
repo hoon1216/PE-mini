@@ -404,10 +404,10 @@ function writeChoiceTable(
   writer.addTitle(section.questionTitle);
 
   if (section.dashboardStats) {
-    const { segments, items } = section.dashboardStats;
+    const { segments, items, showCategoryColumn } = section.dashboardStats;
     writer.addRows([
       [
-        "구분",
+        ...(showCategoryColumn ? ["구분"] : []),
         "평가 항목",
         "선택지",
         ...segments.map((segment) => `${segment.groupLabel} ${segment.label}`),
@@ -446,14 +446,21 @@ function writeChoiceTable(
     }
 
     items.forEach((item, itemIndex) => {
-      const labelCells = item.category
-        ? [
-            categorySpans[itemIndex] !== null ? item.category ?? "" : "",
-            itemLabelSpans[itemIndex] !== null ? item.itemLabel : "",
-          ]
-        : itemLabelSpans[itemIndex] !== null
+      let labelCells: string[];
+      if (!showCategoryColumn) {
+        labelCells = [
+          itemLabelSpans[itemIndex] !== null ? item.itemLabel : "",
+        ];
+      } else if (item.category) {
+        labelCells = [
+          categorySpans[itemIndex] !== null ? item.category ?? "" : "",
+          itemLabelSpans[itemIndex] !== null ? item.itemLabel : "",
+        ];
+      } else {
+        labelCells = itemLabelSpans[itemIndex] !== null
           ? [item.itemLabel, ""]
           : ["", ""];
+      }
 
       writer.addRows([
         [

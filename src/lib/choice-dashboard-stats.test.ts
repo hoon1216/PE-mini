@@ -81,11 +81,11 @@ describe("choice-dashboard-stats", () => {
     });
   });
 
-  it("excludes questions whose category is 없음", () => {
-    const hidden: Question = {
-      id: "q-hidden",
+  it("includes questions whose category is 없음 without a 구분 column", () => {
+    const noCategory: Question = {
+      id: "q-no-category",
       sectionId: "section-1",
-      title: "숨김 문항",
+      title: "선호하는 안 선택",
       description: null,
       type: "choice",
       config: {
@@ -95,22 +95,54 @@ describe("choice-dashboard-stats", () => {
       },
       sortOrder: 0,
     };
-    const visible: Question = {
-      id: "q-visible",
+
+    const stats = buildChoiceDashboardStats([noCategory], [], [], []);
+
+    expect(stats.items).toHaveLength(1);
+    expect(stats.items[0]).toMatchObject({
+      category: null,
+      itemLabel: "선호하는 안 선택",
+      option: "선택지 A",
+    });
+    expect(stats.showCategoryColumn).toBe(false);
+  });
+
+  it("shows 구분 column when any item has a category", () => {
+    const withCategory: Question = {
+      id: "q-with-category",
       sectionId: "section-1",
-      title: "표시 문항",
+      title: "색상 선택",
       description: null,
       type: "choice",
       config: {
-        options: ["선택지 B"],
+        category: "색상",
+        options: ["A"],
+        selectionMode: "single",
+      },
+      sortOrder: 0,
+    };
+    const withoutCategory: Question = {
+      id: "q-without-category",
+      sectionId: "section-1",
+      title: "기타",
+      description: null,
+      type: "choice",
+      config: {
+        category: "없음",
+        options: ["B"],
         selectionMode: "single",
       },
       sortOrder: 1,
     };
 
-    const stats = buildChoiceDashboardStats([hidden, visible], [], [], []);
+    const stats = buildChoiceDashboardStats(
+      [withCategory, withoutCategory],
+      [],
+      [],
+      []
+    );
 
-    expect(stats.items).toHaveLength(1);
-    expect(stats.items[0].option).toBe("선택지 B");
+    expect(stats.items).toHaveLength(2);
+    expect(stats.showCategoryColumn).toBe(true);
   });
 });

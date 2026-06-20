@@ -322,6 +322,7 @@ export interface ChoiceDashboardItemStats {
 export interface ChoiceDashboardStats {
   segments: ComparisonSegment[];
   items: ChoiceDashboardItemStats[];
+  showCategoryColumn: boolean;
 }
 
 export type ComparisonSegment =

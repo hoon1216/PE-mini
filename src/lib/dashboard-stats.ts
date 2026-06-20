@@ -18,7 +18,7 @@ import type {
   TextSectionStats,
   ChoiceQuestionConfig,
 } from "./types";
-import { buildChoiceSectionStats, isChoiceGroupedByRank1, isHiddenChoiceCategory } from "./choice-dashboard-stats";
+import { buildChoiceSectionStats, isChoiceGroupedByRank1 } from "./choice-dashboard-stats";
 import {
   demographicKey,
   getPresentAgeGroups,
@@ -616,24 +616,11 @@ function buildSectionTables(
     }
 
     if (question.type === "choice") {
-      if (
-        isHiddenChoiceCategory(
-          (question.config as ChoiceQuestionConfig).category
-        )
-      ) {
-        index += 1;
-        continue;
-      }
-
       const batch = [question];
       while (
         index + batch.length < questions.length &&
         questions[index + batch.length].type === "choice" &&
-        !isChoiceGroupedByRank1(section, questions[index + batch.length]) &&
-        !isHiddenChoiceCategory(
-          (questions[index + batch.length].config as ChoiceQuestionConfig)
-            .category
-        )
+        !isChoiceGroupedByRank1(section, questions[index + batch.length])
       ) {
         batch.push(questions[index + batch.length]);
       }

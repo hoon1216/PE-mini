@@ -82,10 +82,6 @@ function buildChoiceSegmentCell(
   };
 }
 
-export function isHiddenChoiceCategory(category?: string | null): boolean {
-  return category?.trim() === "없음";
-}
-
 function choiceDashboardCategory(
   question: Question
 ): { category: string | null; itemLabel: string } {
@@ -106,14 +102,7 @@ function buildChoiceDashboardItems(
   answers: Answer[],
   segments: ChoiceDashboardStats["segments"]
 ): ChoiceDashboardItemStats[] {
-  return choiceQuestions
-    .filter(
-      (question) =>
-        !isHiddenChoiceCategory(
-          (question.config as ChoiceQuestionConfig).category
-        )
-    )
-    .flatMap((question) => {
+  return choiceQuestions.flatMap((question) => {
       const config = question.config as ChoiceQuestionConfig;
       const { category, itemLabel } = choiceDashboardCategory(question);
 
@@ -154,14 +143,17 @@ export function buildChoiceDashboardStats(
     totalLabel: "전체",
   });
 
+  const items = buildChoiceDashboardItems(
+    choiceQuestions,
+    responses,
+    answers,
+    segments
+  );
+
   return {
     segments,
-    items: buildChoiceDashboardItems(
-      choiceQuestions,
-      responses,
-      answers,
-      segments
-    ),
+    items,
+    showCategoryColumn: items.some((item) => item.category !== null),
   };
 }
 
