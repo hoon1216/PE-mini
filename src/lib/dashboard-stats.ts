@@ -16,7 +16,6 @@ import type {
   Section,
   SurveyDetail,
   TextSectionStats,
-  ChoiceQuestionConfig,
 } from "./types";
 import {
   buildChoiceSectionStats,
@@ -32,7 +31,7 @@ import {
 import { buildTextDemographicItems } from "./text-demographic-stats";
 import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
 import { buildScoreCompareSectionStats, buildScoreCompareCombinedReasonSectionStats } from "./score-compare-stats";
-import { buildCombinedReasonBlocks, buildCombinedReasonSectionStats, buildCombinedReasonSectionStatsForChoiceOption } from "./combined-reason-stats";
+import { buildCombinedReasonBlocks, buildCombinedReasonSectionStats } from "./combined-reason-stats";
 import { questionIncludesReason } from "./combined-reason-utils";
 
 function average(values: number[]): number | null {
@@ -456,23 +455,19 @@ function pushCombinedReasonTable(
   if (!questionIncludesReason(question)) return;
 
   if (question.type === "choice") {
-    const config = question.config as ChoiceQuestionConfig;
-    for (const option of config.options) {
-      const reasonStats = buildCombinedReasonSectionStatsForChoiceOption(
-        section,
-        question,
-        option,
-        responses,
-        answers,
-        ageGroups,
-        demographicFields
-      );
-      if (reasonStats) {
-        tables.push({
-          type: "combined-reason",
-          data: reasonStats,
-        });
-      }
+    const reasonStats = buildCombinedReasonSectionStats(
+      section,
+      question,
+      responses,
+      answers,
+      ageGroups,
+      demographicFields
+    );
+    if (reasonStats && reasonStats.entries.length > 0) {
+      tables.push({
+        type: "combined-reason",
+        data: reasonStats,
+      });
     }
     return;
   }

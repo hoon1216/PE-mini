@@ -421,10 +421,13 @@ export function CombinedReasonSectionTable({
   tableLabel?: string;
 }) {
   const headerLabel = tableLabel ?? section.tableLabel;
+  const showHeaderLabel = !section.answerGroups?.length;
 
   return (
     <div className="space-y-5">
-      <p className="text-sm font-medium text-muted">{headerLabel}</p>
+      {showHeaderLabel && (
+        <p className="text-sm font-medium text-muted">{headerLabel}</p>
+      )}
       <TextReasonViewer
         title={section.viewerTitle}
         entries={section.entries}

@@ -304,9 +304,10 @@ describe("choice-comparison-stats", () => {
     expect(stats?.combinedReasonSections[0].entries[0].reason).toBe(
       "연결된 선택 이유"
     );
-    expect(stats?.combinedReasonSections[0].viewerTitle).toBe(
-      "선택지 A — 선택 이유"
+    expect(stats?.combinedReasonSections[0].tableLabel).toBe(
+      "객관식 · 선택지 A"
     );
+    expect(stats?.combinedReasonSections[0].viewerTitle).toBe("이유 기술 문항");
     expect(
       stats?.reasonDemographic.entriesByRank1["전체"][0].reason
     ).toBe("독립 이유 기술 답변");

@@ -258,7 +258,7 @@ export function TextReasonViewer({
               {filteredAnswerGroups.map((group) => (
                 <div
                   key={group.label}
-                  className="rounded-xl border border-border bg-slate-50 p-4"
+                  className="rounded-xl border border-border bg-card p-4"
                 >
                   <p className="text-sm font-semibold">{group.label}</p>
                   <div className="mt-3 space-y-2">

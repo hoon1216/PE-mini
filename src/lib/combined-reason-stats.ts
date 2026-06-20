@@ -1,3 +1,4 @@
+import { normalizeChoiceCategory } from "./choice-comparison-stats";
 import {
   defaultReasonLabel,
   extractReasonFromAnswer,
@@ -107,6 +108,28 @@ function buildCombinedReasonEntriesForChoiceOption(
   return entries;
 }
 
+function choiceReasonGroupPrefix(question: Question): string {
+  const config = question.config as ChoiceQuestionConfig;
+  const title = question.title.trim();
+  const genericTitles = ["객관식 문항", "안 선택 문항"];
+  const itemLabel =
+    title && !genericTitles.includes(title) ? title : "객관식";
+  const normalizedCategory = normalizeChoiceCategory(config.category);
+
+  if (normalizedCategory && normalizedCategory !== itemLabel) {
+    return normalizedCategory;
+  }
+
+  return itemLabel;
+}
+
+export function choiceReasonGroupLabel(
+  question: Question,
+  option: string
+): string {
+  return `${choiceReasonGroupPrefix(question)} · ${option}`;
+}
+
 function combinedReasonDisplayTitles(question: Question): {
   tableLabel: string;
   viewerTitle: string;
@@ -143,10 +166,12 @@ function combinedReasonDisplayTitles(question: Question): {
 function choiceOptionReasonTitles(
   question: Question,
   option: string
-): { tableLabel: string; viewerTitle: string } {
-  const reasonLabel = defaultReasonLabel(question);
-  const viewerTitle = `${option} — ${reasonLabel}`;
-  return { tableLabel: viewerTitle, viewerTitle };
+): { tableLabel: string; viewerTitle: string; groupLabel: string } {
+  const titles = combinedReasonDisplayTitles(question);
+  return {
+    ...titles,
+    groupLabel: choiceReasonGroupLabel(question, option),
+  };
 }
 
 function combinedReasonBlockTitle(question: Question): string {
@@ -179,15 +204,16 @@ export function buildCombinedReasonSectionStatsForChoiceOption(
   );
   if (entries.length === 0) return null;
 
-  const { tableLabel, viewerTitle } = choiceOptionReasonTitles(question, option);
+  const { viewerTitle, groupLabel } = choiceOptionReasonTitles(question, option);
 
   return {
     sectionId: section.id,
     questionId: question.id,
-    tableLabel,
+    tableLabel: groupLabel,
     viewerTitle,
     optionLabel: option,
     entries,
+    answerGroups: [{ label: groupLabel, entries }],
     demographicFields,
     ageGroups,
   };
@@ -205,7 +231,7 @@ export function buildCombinedReasonSectionStats(
     const config = question.config as ChoiceQuestionConfig;
     const answerGroups = config.options
       .map((option) => ({
-        label: option,
+        label: choiceReasonGroupLabel(question, option),
         entries: buildCombinedReasonEntriesForChoiceOption(
           question,
           option,

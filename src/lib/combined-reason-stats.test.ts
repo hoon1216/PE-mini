@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCombinedReasonSectionStats,
   buildCombinedReasonSectionStatsForChoiceOption,
+  choiceReasonGroupLabel,
 } from "./combined-reason-stats";
 import type { Answer, Question, Response } from "./types";
 
@@ -105,5 +107,100 @@ describe("combined-reason-stats", () => {
       "B를 선택한 이유",
     ]);
     expect(optionC).toBeNull();
+  });
+
+  it("uses category and option labels for grouped reason cards", () => {
+    const question: Question = {
+      id: "q-choice",
+      sectionId: "section-1",
+      title: "선호하는 안 선택",
+      description: null,
+      type: "choice",
+      config: {
+        category: "구분",
+        options: ["디자인안 A", "디자인안 B"],
+        selectionMode: "single",
+        includeReason: true,
+      },
+      sortOrder: 0,
+    };
+
+    expect(choiceReasonGroupLabel(question, "디자인안 A")).toBe(
+      "구분 · 디자인안 A"
+    );
+
+    const section = {
+      id: "section-1",
+      surveyId: "survey-1",
+      title: "선호도",
+      description: null,
+      sortOrder: 0,
+    };
+
+    const responses: Response[] = [
+      {
+        id: "resp-1",
+        surveyId: "survey-1",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        participantName: "A",
+        gender: "male",
+        ageGroup: "30s",
+        demographicValues: {},
+      },
+      {
+        id: "resp-2",
+        surveyId: "survey-1",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        participantName: "B",
+        gender: "female",
+        ageGroup: "40s",
+        demographicValues: {},
+      },
+    ];
+
+    const answers: Answer[] = [
+      {
+        id: "a1",
+        responseId: "resp-1",
+        questionId: "q-choice",
+        value: JSON.stringify({
+          selected: ["디자인안 A"],
+          reason: "ccccccccc",
+        }),
+      },
+      {
+        id: "a2",
+        responseId: "resp-2",
+        questionId: "q-choice",
+        value: JSON.stringify({
+          selected: ["디자인안 B"],
+          reason: "ddddddddd",
+        }),
+      },
+    ];
+
+    const stats = buildCombinedReasonSectionStats(
+      section,
+      question,
+      responses,
+      answers,
+      ["30s", "40s"],
+      []
+    );
+
+    expect(stats?.answerGroups).toEqual([
+      {
+        label: "구분 · 디자인안 A",
+        entries: [
+          expect.objectContaining({ reason: "ccccccccc" }),
+        ],
+      },
+      {
+        label: "구분 · 디자인안 B",
+        entries: [
+          expect.objectContaining({ reason: "ddddddddd" }),
+        ],
+      },
+    ]);
   });
 });
