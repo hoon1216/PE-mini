@@ -334,7 +334,7 @@ export function formatChoiceSegmentCell(
 export function getChoiceItemLabelRowSpans(
   items: Pick<ChoiceDashboardItemStats, "category" | "itemLabel">[]
 ): (number | null)[] {
-  const spans: (number | null)[] = [];
+  const spans: (number | null)[] = new Array(items.length).fill(null);
   let index = 0;
 
   while (index < items.length) {

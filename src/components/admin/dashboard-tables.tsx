@@ -151,7 +151,7 @@ function ChoiceDashboardTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-max min-w-full border-collapse border border-slate-300 text-sm">
+      <table className="w-max border-collapse border border-slate-300 text-sm">
         <thead>
           <tr>
             <th colSpan={totalColSpan} className={thClass}>

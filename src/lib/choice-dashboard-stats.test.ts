@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildChoiceDashboardStats,
+  getChoiceItemLabelRowSpans,
 } from "./choice-dashboard-stats";
 import type { Question, Response } from "./types";
 
@@ -144,5 +145,15 @@ describe("choice-dashboard-stats", () => {
 
     expect(stats.items).toHaveLength(2);
     expect(stats.showCategoryColumn).toBe(true);
+  });
+
+  it("returns null spans for continuation rows in getChoiceItemLabelRowSpans", () => {
+    const spans = getChoiceItemLabelRowSpans([
+      { category: null, itemLabel: "선호하는 안 선택" },
+      { category: null, itemLabel: "선호하는 안 선택" },
+      { category: null, itemLabel: "선호하는 안 선택" },
+    ]);
+
+    expect(spans).toEqual([3, null, null]);
   });
 });

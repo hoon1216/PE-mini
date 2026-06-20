@@ -414,8 +414,8 @@ function writeChoiceTable(
       ],
     ]);
 
-    const categorySpans: (number | null)[] = [];
-    const itemLabelSpans: (number | null)[] = [];
+    const categorySpans: (number | null)[] = new Array(items.length).fill(null);
+    const itemLabelSpans: (number | null)[] = new Array(items.length).fill(null);
     let index = 0;
     while (index < items.length) {
       const current = items[index];
