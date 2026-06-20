@@ -203,7 +203,12 @@ describe("computeDashboardStats", () => {
       expect(blueItem?.bySegment["gender-female"]).toEqual({ count: 1, percent: 100 });
       expect(
         choiceTable.data.dashboardStats?.segments.some(
-          (segment) => segment.groupLabel === "전체"
+          (segment) => segment.groupLabel === "전체" && segment.label === "전체"
+        )
+      ).toBe(true);
+      expect(
+        choiceTable.data.dashboardStats?.segments.some(
+          (segment) => segment.label === "평균"
         )
       ).toBe(false);
     }

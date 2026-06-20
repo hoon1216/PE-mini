@@ -25,26 +25,26 @@ import type {
 } from "./types";
 
 function choiceQuestionTitle(question: Question): string {
-  return question.title && question.title !== "객관식 문항"
-    ? question.title
-    : "객관식";
-}
-
-function choiceCategoryLabel(question: Question): string {
-  const config = question.config as ChoiceQuestionConfig;
-  return normalizeChoiceCategory(config.category) ?? choiceQuestionTitle(question);
+  if (
+    question.title &&
+    question.title !== "객관식 문항" &&
+    question.title !== "안 선택 문항"
+  ) {
+    return question.title;
+  }
+  return "객관식";
 }
 
 function countOptionSelections(
   config: ChoiceQuestionConfig,
-  responses: Response[],
+  filtered: Response[],
   answers: Answer[],
   questionId: string,
   option: string
 ): number {
   let count = 0;
 
-  for (const response of responses) {
+  for (const response of filtered) {
     const answer = answers.find(
       (entry) => entry.responseId === response.id && entry.questionId === questionId
     );
@@ -61,12 +61,11 @@ function countOptionSelections(
 
 function buildChoiceSegmentCell(
   config: ChoiceQuestionConfig,
-  responses: Response[],
+  filtered: Response[],
   answers: Answer[],
   questionId: string,
-  option: string,
-  filtered: Response[]
-): { count: number; percent: number } {
+  option: string
+): { count: number; percent: number } | null {
   const count = countOptionSelections(
     config,
     filtered,
@@ -74,8 +73,9 @@ function buildChoiceSegmentCell(
     questionId,
     option
   );
-  const total = filtered.length;
+  if (count === 0) return null;
 
+  const total = filtered.length;
   return {
     count,
     percent: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
@@ -90,26 +90,29 @@ function buildChoiceDashboardItems(
 ): ChoiceDashboardItemStats[] {
   return choiceQuestions.flatMap((question) => {
     const config = question.config as ChoiceQuestionConfig;
-    const category = choiceCategoryLabel(question);
+    const category = normalizeChoiceCategory(config.category);
+    const itemLabel = choiceQuestionTitle(question);
 
     return config.options.map((option) => ({
       itemId: `${question.id}::${option}`,
       category,
+      itemLabel,
       option,
       bySegment: Object.fromEntries(
         segments.map((segment) => {
           const filtered = responses.filter((response) =>
             segmentMatchesResponse(response, segment)
           );
-          const cell = buildChoiceSegmentCell(
-            config,
-            responses,
-            answers,
-            question.id,
-            option,
-            filtered
-          );
-          return [segment.key, cell];
+          return [
+            segment.key,
+            buildChoiceSegmentCell(
+              config,
+              filtered,
+              answers,
+              question.id,
+              option
+            ),
+          ];
         })
       ),
     }));
@@ -123,7 +126,8 @@ export function buildChoiceDashboardStats(
   demographicFields: DemographicFieldConfig[]
 ): ChoiceDashboardStats {
   const segments = buildDemographicDashboardSegments(demographicFields, responses, {
-    includeTotalAverage: false,
+    includeTotalAverage: true,
+    totalLabel: "전체",
   });
 
   return {
@@ -303,6 +307,31 @@ export function buildChoiceSectionStats(
 export function formatChoiceSegmentCell(
   cell: { count: number; percent: number } | null | undefined
 ): string {
-  if (!cell) return "-";
-  return `${cell.count} (${cell.percent}%)`;
+  if (!cell || cell.count === 0) return "-";
+  return `${cell.percent}% (${cell.count})`;
+}
+
+export function getChoiceItemLabelRowSpans(
+  items: Pick<ChoiceDashboardItemStats, "category" | "itemLabel">[]
+): (number | null)[] {
+  const spans: (number | null)[] = [];
+  let index = 0;
+
+  while (index < items.length) {
+    const current = items[index];
+    let span = 1;
+
+    while (
+      index + span < items.length &&
+      items[index + span].category === current.category &&
+      items[index + span].itemLabel === current.itemLabel
+    ) {
+      span += 1;
+    }
+
+    spans[index] = span;
+    index += span;
+  }
+
+  return spans;
 }

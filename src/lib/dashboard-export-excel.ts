@@ -396,30 +396,58 @@ function writeChoiceTable(
     writer.addRows([
       [
         "구분",
-        "디자인 안",
+        "평가 항목",
+        "선택지",
         ...segments.map((segment) => `${segment.groupLabel} ${segment.label}`),
       ],
     ]);
 
     const categorySpans: (number | null)[] = [];
+    const itemLabelSpans: (number | null)[] = [];
     let index = 0;
     while (index < items.length) {
-      const category = items[index].category;
+      const current = items[index];
       let span = 1;
       while (
         index + span < items.length &&
-        items[index + span].category === category
+        items[index + span].category === current.category
       ) {
         span += 1;
       }
-      categorySpans[index] = span;
+      categorySpans[index] = current.category ? span : null;
+      index += span;
+    }
+
+    index = 0;
+    while (index < items.length) {
+      const current = items[index];
+      let span = 1;
+      while (
+        index + span < items.length &&
+        items[index + span].category === current.category &&
+        items[index + span].itemLabel === current.itemLabel
+      ) {
+        span += 1;
+      }
+      itemLabelSpans[index] = span;
       index += span;
     }
 
     items.forEach((item, itemIndex) => {
       writer.addRows([
         [
-          categorySpans[itemIndex] !== null ? item.category : "",
+          categorySpans[itemIndex] !== null
+            ? item.category ?? ""
+            : itemLabelSpans[itemIndex] !== null
+              ? item.itemLabel
+              : "",
+          item.category
+            ? itemLabelSpans[itemIndex] !== null
+              ? item.itemLabel
+              : ""
+            : itemLabelSpans[itemIndex] !== null
+              ? ""
+              : "",
           item.option,
           ...segments.map((segment) =>
             formatChoiceSegmentCell(item.bySegment[segment.key])

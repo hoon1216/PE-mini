@@ -6,7 +6,7 @@ import {
 import type { Answer, Question, Response } from "./types";
 
 describe("choice-dashboard-stats", () => {
-  it("orders dashboard segments without total average", () => {
+  it("orders dashboard segments with total column labeled 전체", () => {
     const responses: Response[] = [
       {
         id: "resp-1",
@@ -41,22 +41,26 @@ describe("choice-dashboard-stats", () => {
     );
 
     expect(stats.segments.map((segment) => segment.groupLabel)).toEqual([
+      "전체",
       "가전보유",
       "가전보유",
       "성별",
       "성별",
       "연령대",
     ]);
-    expect(stats.items[0].bySegment["gender-male"]).toEqual({
-      count: 1,
-      percent: 100,
+    expect(stats.segments[0].label).toBe("전체");
+    expect(stats.items[0]).toMatchObject({
+      category: "색상",
+      itemLabel: "색상 선택",
+      option: "A",
     });
+    expect(stats.items[0].bySegment.total).toEqual({ count: 1, percent: 100 });
+    expect(stats.items[1].bySegment.total).toBeNull();
   });
 
-  it("formats segment cells as count and percent", () => {
-    expect(formatChoiceSegmentCell({ count: 3, percent: 37.5 })).toBe(
-      "3 (37.5%)"
-    );
+  it("formats segment cells as percent and count", () => {
+    expect(formatChoiceSegmentCell({ count: 1, percent: 25 })).toBe("25% (1)");
+    expect(formatChoiceSegmentCell({ count: 0, percent: 0 })).toBe("-");
     expect(formatChoiceSegmentCell(null)).toBe("-");
   });
 });

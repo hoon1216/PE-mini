@@ -23,7 +23,7 @@ import {
   dashboardTableTitle,
   type DashboardTableEntry,
 } from "@/lib/dashboard-layout";
-import { formatChoiceSegmentCell } from "@/lib/choice-dashboard-stats";
+import { formatChoiceSegmentCell, getChoiceItemLabelRowSpans } from "@/lib/choice-dashboard-stats";
 import type { ScoreCompareScoreStats } from "@/lib/types";
 
 const thClass =
@@ -123,6 +123,109 @@ function DemographicSegmentTable<T>({
               {segments.map((segment) => (
                 <td key={`${item.itemId}-${segment.key}`} className={tdClass}>
                   {formatCell(item.bySegment[segment.key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ChoiceDashboardTable({
+  sectionTitle,
+  dashboardStats,
+}: {
+  sectionTitle: string;
+  dashboardStats: NonNullable<ChoiceSectionStats["dashboardStats"]>;
+}) {
+  const { segments, items } = dashboardStats;
+  const segmentGroups = groupSegmentHeaderSpans(segments);
+  const categoryRowSpans = getCategoryRowSpans(
+    items.map((item) => ({ category: item.category ?? "" }))
+  );
+  const itemLabelRowSpans = getChoiceItemLabelRowSpans(items);
+  const totalColSpan = 3 + segments.length;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[840px] border-collapse border border-slate-300 text-sm">
+        <thead>
+          <tr>
+            <th colSpan={totalColSpan} className={thClass}>
+              {sectionTitle}
+            </th>
+          </tr>
+          <tr>
+            <th rowSpan={2} className={thClass}>
+              구분
+            </th>
+            <th rowSpan={2} className={thClass}>
+              평가 항목
+            </th>
+            <th rowSpan={2} className={thClass}>
+              선택지
+            </th>
+            {segmentGroups.map((group) => (
+              <th
+                key={group.label}
+                colSpan={group.count}
+                className={thClass}
+              >
+                {group.label}
+              </th>
+            ))}
+          </tr>
+          <tr>
+            {segments.map((segment) => (
+              <th key={segment.key} className={thClass}>
+                {segment.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, index) => (
+            <tr key={item.itemId}>
+              {item.category ? (
+                <>
+                  {categoryRowSpans[index] !== null && (
+                    <td
+                      rowSpan={categoryRowSpans[index]!}
+                      className={`${tdClass} align-middle font-medium`}
+                    >
+                      {item.category}
+                    </td>
+                  )}
+                  {itemLabelRowSpans[index] !== null && (
+                    <td
+                      rowSpan={itemLabelRowSpans[index]!}
+                      className={`${tdClass} text-left align-middle`}
+                    >
+                      {item.itemLabel}
+                    </td>
+                  )}
+                </>
+              ) : (
+                <>
+                  {itemLabelRowSpans[index] !== null && (
+                    <td
+                      rowSpan={itemLabelRowSpans[index]!}
+                      className={`${tdClass} align-middle font-medium`}
+                    >
+                      {item.itemLabel}
+                    </td>
+                  )}
+                  {itemLabelRowSpans[index] !== null && (
+                    <td rowSpan={itemLabelRowSpans[index]!} className={tdClass} />
+                  )}
+                </>
+              )}
+              <td className={`${tdClass} text-left`}>{item.option}</td>
+              {segments.map((segment) => (
+                <td key={`${item.itemId}-${segment.key}`} className={tdClass}>
+                  {formatChoiceSegmentCell(item.bySegment[segment.key])}
                 </td>
               ))}
             </tr>
@@ -716,17 +819,9 @@ export function ChoiceSectionTable({
 
   if (section.dashboardStats) {
     return (
-      <DemographicSegmentTable
+      <ChoiceDashboardTable
         sectionTitle={headerLabel}
-        segments={section.dashboardStats.segments}
-        items={section.dashboardStats.items.map((item) => ({
-          itemId: item.itemId,
-          category: item.category,
-          valueLabel: item.option,
-          bySegment: item.bySegment,
-        }))}
-        getValueLabel={(item) => item.valueLabel}
-        formatCell={formatChoiceSegmentCell}
+        dashboardStats={section.dashboardStats}
       />
     );
   }

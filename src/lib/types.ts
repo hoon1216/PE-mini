@@ -312,7 +312,8 @@ export interface ChoiceSegmentCell {
 
 export interface ChoiceDashboardItemStats {
   itemId: string;
-  category: string;
+  category: string | null;
+  itemLabel: string;
   option: string;
   bySegment: Record<string, ChoiceSegmentCell | null>;
 }
