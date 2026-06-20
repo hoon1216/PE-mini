@@ -818,11 +818,26 @@ describe("computeDashboardStats", () => {
     const stats = computeDashboardStats(survey, responses, answers);
     const tableTypes = stats.sectionGroups[0].tables.map((table) => table.type);
 
-    expect(tableTypes).toEqual(["choice", "combined-reason", "text"]);
+    expect(tableTypes).toEqual([
+      "choice",
+      "combined-reason",
+      "combined-reason",
+      "text",
+    ]);
 
-    const combinedReason = stats.sectionGroups[0].tables.find(
+    const combinedReasons = stats.sectionGroups[0].tables.filter(
       (table) => table.type === "combined-reason"
     );
+    expect(combinedReasons).toHaveLength(2);
+    if (
+      combinedReasons[0]?.type === "combined-reason" &&
+      combinedReasons[1]?.type === "combined-reason"
+    ) {
+      expect(combinedReasons[0].data.optionLabel).toBe("1안");
+      expect(combinedReasons[1].data.optionLabel).toBe("2안");
+    }
+
+    const combinedReason = combinedReasons[0];
     expect(combinedReason?.type).toBe("combined-reason");
     if (combinedReason?.type === "combined-reason") {
       expect(combinedReason.data.questionId).toBe("q-choice");

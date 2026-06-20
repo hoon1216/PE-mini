@@ -20,7 +20,9 @@ export function dashboardTableKey(
     case "choice":
       return `${sectionId}-choice-${table.data.questionId}`;
     case "combined-reason":
-      return `${sectionId}-combined-reason-${table.data.questionId}`;
+      return table.data.optionLabel
+        ? `${sectionId}-combined-reason-${table.data.questionId}-${table.data.optionLabel}`
+        : `${sectionId}-combined-reason-${table.data.questionId}`;
     default:
       return `${sectionId}-${table.type}`;
   }

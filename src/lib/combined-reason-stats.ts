@@ -6,6 +6,7 @@ import {
   parseStoredScoreAnswer,
   questionIncludesReason,
 } from "./combined-reason-utils";
+import { parseChoiceAnswer } from "./choice-utils";
 import type {
   Answer,
   ChoiceQuestionConfig,
@@ -69,6 +70,43 @@ export function buildCombinedReasonEntries(
   return entries;
 }
 
+function buildCombinedReasonEntriesForChoiceOption(
+  question: Question,
+  option: string,
+  responses: Response[],
+  answers: Answer[]
+): TextReasonEntry[] {
+  if (question.type !== "choice" || !questionIncludesReason(question)) {
+    return [];
+  }
+
+  const config = question.config as ChoiceQuestionConfig;
+  const entries: TextReasonEntry[] = [];
+
+  for (const response of responses) {
+    const answer = answers.find(
+      (entry) =>
+        entry.responseId === response.id && entry.questionId === question.id
+    );
+    if (!answer) continue;
+
+    const selected = parseChoiceAnswer(answer.value, config);
+    if (!selected.includes(option)) continue;
+
+    const reason = parseStoredChoiceAnswer(answer.value, config).reason.trim();
+    if (!reason) continue;
+
+    entries.push({
+      reason,
+      gender: response.gender,
+      ageGroup: response.ageGroup,
+      demographicValues: response.demographicValues,
+    });
+  }
+
+  return entries;
+}
+
 function combinedReasonDisplayTitles(question: Question): {
   tableLabel: string;
   viewerTitle: string;
@@ -102,6 +140,15 @@ function combinedReasonDisplayTitles(question: Question): {
   return { tableLabel: viewerTitle, viewerTitle };
 }
 
+function choiceOptionReasonTitles(
+  question: Question,
+  option: string
+): { tableLabel: string; viewerTitle: string } {
+  const reasonLabel = defaultReasonLabel(question);
+  const viewerTitle = `${option} — ${reasonLabel}`;
+  return { tableLabel: viewerTitle, viewerTitle };
+}
+
 function combinedReasonBlockTitle(question: Question): string {
   return combinedReasonDisplayTitles(question).viewerTitle;
 }
@@ -115,6 +162,37 @@ export function questionsForChoiceComparisonCombinedReasons(
   );
 }
 
+export function buildCombinedReasonSectionStatsForChoiceOption(
+  section: Section,
+  question: Question,
+  option: string,
+  responses: Response[],
+  answers: Answer[],
+  ageGroups: AgeGroup[],
+  demographicFields: DemographicFieldConfig[]
+): CombinedReasonSectionStats | null {
+  const entries = buildCombinedReasonEntriesForChoiceOption(
+    question,
+    option,
+    responses,
+    answers
+  );
+  if (entries.length === 0) return null;
+
+  const { tableLabel, viewerTitle } = choiceOptionReasonTitles(question, option);
+
+  return {
+    sectionId: section.id,
+    questionId: question.id,
+    tableLabel,
+    viewerTitle,
+    optionLabel: option,
+    entries,
+    demographicFields,
+    ageGroups,
+  };
+}
+
 export function buildCombinedReasonSectionStats(
   section: Section,
   question: Question,
@@ -123,6 +201,36 @@ export function buildCombinedReasonSectionStats(
   ageGroups: AgeGroup[],
   demographicFields: DemographicFieldConfig[]
 ): CombinedReasonSectionStats | null {
+  if (question.type === "choice" && questionIncludesReason(question)) {
+    const config = question.config as ChoiceQuestionConfig;
+    const answerGroups = config.options
+      .map((option) => ({
+        label: option,
+        entries: buildCombinedReasonEntriesForChoiceOption(
+          question,
+          option,
+          responses,
+          answers
+        ),
+      }))
+      .filter((group) => group.entries.length > 0);
+
+    if (answerGroups.length === 0) return null;
+
+    const { tableLabel, viewerTitle } = combinedReasonDisplayTitles(question);
+
+    return {
+      sectionId: section.id,
+      questionId: question.id,
+      tableLabel,
+      viewerTitle,
+      entries: answerGroups.flatMap((group) => group.entries),
+      answerGroups,
+      demographicFields,
+      ageGroups,
+    };
+  }
+
   const entries = buildCombinedReasonEntries(question, responses, answers);
   if (entries.length === 0) return null;
 
@@ -171,18 +279,34 @@ export function buildCombinedReasonSections(
   ageGroups: AgeGroup[],
   demographicFields: DemographicFieldConfig[]
 ): CombinedReasonSectionStats[] {
-  return questions
-    .map((question) =>
-      buildCombinedReasonSectionStats(
-        section,
-        question,
-        responses,
-        answers,
-        ageGroups,
-        demographicFields
-      )
-    )
-    .filter(
-      (entry): entry is CombinedReasonSectionStats => entry !== null
+  return questions.flatMap((question) => {
+    if (question.type === "choice" && questionIncludesReason(question)) {
+      const config = question.config as ChoiceQuestionConfig;
+      return config.options
+        .map((option) =>
+          buildCombinedReasonSectionStatsForChoiceOption(
+            section,
+            question,
+            option,
+            responses,
+            answers,
+            ageGroups,
+            demographicFields
+          )
+        )
+        .filter(
+          (entry): entry is CombinedReasonSectionStats => entry !== null
+        );
+    }
+
+    const stats = buildCombinedReasonSectionStats(
+      section,
+      question,
+      responses,
+      answers,
+      ageGroups,
+      demographicFields
     );
+    return stats ? [stats] : [];
+  });
 }

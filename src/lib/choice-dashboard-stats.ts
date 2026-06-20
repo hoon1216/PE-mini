@@ -82,6 +82,20 @@ function buildChoiceSegmentCell(
   };
 }
 
+function choiceDashboardCategory(
+  question: Question
+): { category: string | null; itemLabel: string } {
+  const config = question.config as ChoiceQuestionConfig;
+  const itemLabel = choiceQuestionTitle(question);
+  const normalizedCategory = normalizeChoiceCategory(config.category);
+
+  if (normalizedCategory && normalizedCategory !== itemLabel) {
+    return { category: normalizedCategory, itemLabel };
+  }
+
+  return { category: null, itemLabel };
+}
+
 function buildChoiceDashboardItems(
   choiceQuestions: Question[],
   responses: Response[],
@@ -90,8 +104,7 @@ function buildChoiceDashboardItems(
 ): ChoiceDashboardItemStats[] {
   return choiceQuestions.flatMap((question) => {
     const config = question.config as ChoiceQuestionConfig;
-    const category = normalizeChoiceCategory(config.category);
-    const itemLabel = choiceQuestionTitle(question);
+    const { category, itemLabel } = choiceDashboardCategory(question);
 
     return config.options.map((option) => ({
       itemId: `${question.id}::${option}`,

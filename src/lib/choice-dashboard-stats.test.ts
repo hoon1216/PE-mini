@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildChoiceDashboardStats,
-  formatChoiceSegmentCell,
 } from "./choice-dashboard-stats";
-import type { Answer, Question, Response } from "./types";
+import type { Question, Response } from "./types";
 
 describe("choice-dashboard-stats", () => {
   it("orders dashboard segments with total column labeled 전체", () => {
@@ -58,9 +57,32 @@ describe("choice-dashboard-stats", () => {
     expect(stats.items[1].bySegment.total).toBeNull();
   });
 
-  it("formats segment cells as percent and count", () => {
-    expect(formatChoiceSegmentCell({ count: 1, percent: 25 })).toBe("25% (1)");
-    expect(formatChoiceSegmentCell({ count: 0, percent: 0 })).toBe("-");
-    expect(formatChoiceSegmentCell(null)).toBe("-");
+  it("uses question title only in 구분 when category matches title", () => {
+    const question: Question = {
+      id: "q-choice",
+      sectionId: "section-1",
+      title: "선호하는 안 선택",
+      description: null,
+      type: "choice",
+      config: {
+        category: "선호하는 안 선택",
+        options: ["선택지 A", "선택지 B"],
+        selectionMode: "single",
+      },
+      sortOrder: 0,
+    };
+
+    const stats = buildChoiceDashboardStats(
+      [question],
+      [],
+      [],
+      []
+    );
+
+    expect(stats.items[0]).toMatchObject({
+      category: null,
+      itemLabel: "선호하는 안 선택",
+      option: "선택지 A",
+    });
   });
 });

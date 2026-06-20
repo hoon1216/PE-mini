@@ -378,9 +378,21 @@ function writeCombinedReasonTable(
 ) {
   const section = table.data;
   writer.addTitle(section.tableLabel);
-  for (const entry of section.entries) {
-    writer.addRows([[entry.reason]]);
+
+  if (section.answerGroups && section.answerGroups.length > 0) {
+    for (const group of section.answerGroups) {
+      writer.addRows([[group.label]]);
+      for (const entry of group.entries) {
+        writer.addRows([[entry.reason]]);
+      }
+      writer.addBlank();
+    }
+  } else {
+    for (const entry of section.entries) {
+      writer.addRows([[entry.reason]]);
+    }
   }
+
   writer.addBlank(2);
 }
 
