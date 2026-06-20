@@ -106,6 +106,15 @@ function combinedReasonBlockTitle(question: Question): string {
   return combinedReasonDisplayTitles(question).viewerTitle;
 }
 
+export function questionsForChoiceComparisonCombinedReasons(
+  questions: Question[]
+): Question[] {
+  return questions.filter(
+    (question) =>
+      question.type === "choice" && questionIncludesReason(question)
+  );
+}
+
 export function buildCombinedReasonSectionStats(
   section: Section,
   question: Question,

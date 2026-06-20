@@ -309,6 +309,112 @@ describe("choice-comparison-stats", () => {
     ).toBe("독립 이유 기술 답변");
   });
 
+  it("does not duplicate score-compare includeReason in comparison sections", () => {
+    const survey: SurveyDetail = {
+      ...createSurvey(),
+      sections: [
+        {
+          id: "section-mixed",
+          surveyId: "survey-1",
+          title: "혼합",
+          description: null,
+          sortOrder: 0,
+          questions: [
+            {
+              id: "q-compare",
+              sectionId: "section-mixed",
+              title: "안 점수 비교 문항",
+              description: null,
+              type: "score-compare",
+              config: {
+                category: "구분",
+                combinations: ["디자인안 A", "디자인안 B"],
+                includeReason: true,
+              },
+              sortOrder: 0,
+            },
+            {
+              id: "q-choice",
+              sectionId: "section-mixed",
+              title: "안 선택 문항",
+              description: null,
+              type: "choice",
+              config: {
+                options: ["선택지 A", "선택지 B"],
+                selectionMode: "single",
+                includeReason: true,
+              },
+              sortOrder: 1,
+            },
+            {
+              id: "q-text",
+              sectionId: "section-mixed",
+              title: "이유 기술 문항",
+              description: null,
+              type: "text",
+              config: { maxLength: 500 },
+              sortOrder: 2,
+            },
+          ],
+        },
+      ],
+    };
+
+    const section = survey.sections[0];
+    const responses: Response[] = [
+      {
+        id: "resp-1",
+        surveyId: "survey-1",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        participantName: "A",
+        gender: "male",
+        ageGroup: "30s",
+        demographicValues: { "field-1": "보유하지 않음" },
+      },
+    ];
+    const answers: Answer[] = [
+      {
+        id: "a1",
+        responseId: "resp-1",
+        questionId: "q-compare",
+        value: JSON.stringify({
+          scores: { "디자인안 A": 6, "디자인안 B": 4 },
+          reason: "ㄷㄷㄷㄷㄷㄷㄷㄷ",
+        }),
+      },
+      {
+        id: "a2",
+        responseId: "resp-1",
+        questionId: "q-choice",
+        value: JSON.stringify({
+          selected: ["선택지 A"],
+          reason: "선택 이유",
+        }),
+      },
+      {
+        id: "a3",
+        responseId: "resp-1",
+        questionId: "q-text",
+        value: "독립 이유",
+      },
+    ];
+
+    const stats = buildChoiceComparisonSectionStats(
+      survey,
+      section,
+      responses,
+      answers
+    );
+
+    expect(stats?.combinedReasonSections).toHaveLength(1);
+    expect(stats?.combinedReasonSections[0].questionId).toBe("q-choice");
+    expect(
+      stats?.combinedReasonSections.some(
+        (entry) => entry.questionId === "q-compare"
+      )
+    ).toBe(false);
+  });
+
   it("builds comparison matrix and reason groups", () => {
     const survey = createSurvey();
     const section = survey.sections[1];
