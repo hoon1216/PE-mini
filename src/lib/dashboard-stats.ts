@@ -16,14 +16,8 @@ import type {
   Section,
   SurveyDetail,
   TextSectionStats,
-  ChoiceSectionStats,
-  ChoiceGroupStats,
-  ChoiceOptionStats,
-  ChoiceQuestionConfig,
 } from "./types";
-import {
-  parseChoiceAnswer,
-} from "./choice-utils";
+import { buildChoiceSectionStats, isChoiceGroupedByRank1 } from "./choice-dashboard-stats";
 import {
   demographicKey,
   getPresentAgeGroups,
@@ -38,11 +32,6 @@ import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReaso
 import { buildScoreCompareSectionStats, buildScoreCompareCombinedReasonSectionStats } from "./score-compare-stats";
 import { buildCombinedReasonBlocks, buildCombinedReasonSectionStats } from "./combined-reason-stats";
 import { questionIncludesReason } from "./combined-reason-utils";
-import {
-  findPrecedingRankingQuestion,
-  isRankGroupedTextSection,
-  type GroupingQuestion,
-} from "./text-grouping-utils";
 
 function average(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -453,177 +442,6 @@ function buildTextSectionStats(
   };
 }
 
-function choiceQuestionTitle(question: Question): string {
-  return question.title && question.title !== "객관식 문항"
-    ? question.title
-    : "객관식";
-}
-
-function buildFlatChoiceOptions(
-  config: ChoiceQuestionConfig,
-  responses: Response[],
-  answers: Answer[],
-  questionId: string
-): ChoiceOptionStats[] {
-  const counts = new Map<string, number>();
-
-  for (const response of responses) {
-    const answer = answers.find(
-      (a) => a.responseId === response.id && a.questionId === questionId
-    );
-    if (!answer) continue;
-
-    const selected = parseChoiceAnswer(answer.value, config);
-    for (const option of selected) {
-      if (!config.options.includes(option)) continue;
-      counts.set(option, (counts.get(option) ?? 0) + 1);
-    }
-  }
-
-  const total = responses.length;
-  return config.options
-    .filter((option) => (counts.get(option) ?? 0) > 0)
-    .map((option) => {
-      const count = counts.get(option) ?? 0;
-      return {
-        option,
-        count,
-        percent: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
-      };
-    });
-}
-
-function isLastChoiceQuestionInSection(
-  section: Section & { questions: Question[] },
-  question: Question
-): boolean {
-  const choiceQuestions = section.questions.filter((q) => q.type === "choice");
-  if (choiceQuestions.length === 0) return false;
-  const lastChoice = choiceQuestions.sort((a, b) => b.sortOrder - a.sortOrder)[0];
-  return lastChoice.id === question.id;
-}
-
-function buildChoiceSectionStats(
-  section: Section & { questions: Question[] },
-  question: Question,
-  precedingRanking: (GroupingQuestion & { id: string; title: string }) | null,
-  responses: Response[],
-  answers: Answer[],
-  ageGroups: AgeGroup[],
-  demographicFields: DemographicFieldConfig[]
-): ChoiceSectionStats {
-  const config = question.config as ChoiceQuestionConfig;
-  const groupedByRank1 =
-    isRankGroupedTextSection(section) &&
-    precedingRanking !== null &&
-    isLastChoiceQuestionInSection(section, question);
-
-  if (!groupedByRank1 || !precedingRanking) {
-    return {
-      sectionId: section.id,
-      sectionTitle: section.title,
-      questionId: question.id,
-      questionTitle: choiceQuestionTitle(question),
-      groupedByRank1: false,
-      rankingQuestionTitle: null,
-      groups: [
-        {
-          groupName: "전체",
-          options: buildFlatChoiceOptions(
-            config,
-            responses,
-            answers,
-            question.id
-          ),
-        },
-      ],
-      demographicFields,
-      ageGroups,
-    };
-  }
-
-  const rankingConfig = precedingRanking.config as RankingQuestionConfig;
-  const optionCountsByRank1 = new Map<string, Map<string, number>>();
-
-  for (const response of responses) {
-    const rankAnswer = answers.find(
-      (a) =>
-        a.responseId === response.id && a.questionId === precedingRanking.id
-    );
-    const parsed = parseRankingAnswer(rankAnswer?.value ?? "");
-    if (!parsed?.rank1) continue;
-
-    const choiceAnswer = answers.find(
-      (a) => a.responseId === response.id && a.questionId === question.id
-    );
-    if (!choiceAnswer) continue;
-
-    const selected = parseChoiceAnswer(choiceAnswer.value, config);
-    if (selected.length === 0) continue;
-
-    if (!optionCountsByRank1.has(parsed.rank1)) {
-      optionCountsByRank1.set(parsed.rank1, new Map());
-    }
-    const optionCounts = optionCountsByRank1.get(parsed.rank1)!;
-
-    for (const option of selected) {
-      if (!config.options.includes(option)) continue;
-      optionCounts.set(option, (optionCounts.get(option) ?? 0) + 1);
-    }
-  }
-
-  const rank1Order = [
-    ...rankingConfig.combinations.filter((rank1) => optionCountsByRank1.has(rank1)),
-    ...[...optionCountsByRank1.keys()].filter(
-      (rank1) => !rankingConfig.combinations.includes(rank1)
-    ),
-  ];
-
-  const groups: ChoiceGroupStats[] = rank1Order
-    .map((groupName) => {
-      const optionCounts = optionCountsByRank1.get(groupName);
-      if (!optionCounts) return null;
-
-      const groupTotal = [...optionCounts.values()].reduce(
-        (sum, count) => sum + count,
-        0
-      );
-
-      const options = config.options
-        .filter((option) => (optionCounts.get(option) ?? 0) > 0)
-        .map((option) => {
-          const count = optionCounts.get(option) ?? 0;
-          return {
-            option,
-            count,
-            percent:
-              groupTotal > 0
-                ? Math.round((count / groupTotal) * 1000) / 10
-                : 0,
-          };
-        });
-
-      if (options.length === 0) return null;
-      return { groupName, options };
-    })
-    .filter((group): group is ChoiceGroupStats => group !== null);
-
-  return {
-    sectionId: section.id,
-    sectionTitle: section.title,
-    questionId: question.id,
-    questionTitle: choiceQuestionTitle(question),
-    groupedByRank1: true,
-    rankingQuestionTitle:
-      precedingRanking.title !== "순위 문항"
-        ? precedingRanking.title
-        : "순위 선정",
-    groups,
-    demographicFields,
-    ageGroups,
-  };
-}
-
 function pushCombinedReasonTable(
   tables: DashboardStats["sectionGroups"][number]["tables"],
   section: Section,
@@ -680,11 +498,6 @@ function buildSectionTables(
     answers
   );
   const textQuestions = questions.filter((question) => question.type === "text");
-  const precedingRanking = findPrecedingRankingQuestion(section);
-  const rankingQuestion =
-    precedingRanking?.id && precedingRanking.title !== undefined
-      ? (precedingRanking as GroupingQuestion & { id: string; title: string })
-      : null;
 
   let comparisonAdded = false;
   let textAdded = false;
@@ -807,31 +620,43 @@ function buildSectionTables(
           ageGroups,
           survey.demographicFields
         );
+        index += 1;
+        continue;
       } else {
+        const batch = [question];
+        while (
+          index + batch.length < questions.length &&
+          questions[index + batch.length].type === "choice" &&
+          !isChoiceGroupedByRank1(section, questions[index + batch.length])
+        ) {
+          batch.push(questions[index + batch.length]);
+        }
+
         tables.push({
           type: "choice",
           data: buildChoiceSectionStats(
             section,
-            question,
-            rankingQuestion,
+            batch,
             responses,
             answers,
             ageGroups,
             survey.demographicFields
           ),
         });
-        pushCombinedReasonTable(
-          tables,
-          section,
-          question,
-          responses,
-          answers,
-          ageGroups,
-          survey.demographicFields
-        );
+        for (const batchQuestion of batch) {
+          pushCombinedReasonTable(
+            tables,
+            section,
+            batchQuestion,
+            responses,
+            answers,
+            ageGroups,
+            survey.demographicFields
+          );
+        }
+        index += batch.length;
+        continue;
       }
-      index += 1;
-      continue;
     }
 
     if (question.type === "text") {

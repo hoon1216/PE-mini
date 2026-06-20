@@ -56,13 +56,21 @@ function scoreForCompareItem(
   return scoreFromAnswerValue(answer.value, combinations);
 }
 
-export function buildScoreCompareDashboardSegments(
+export function buildDemographicDashboardSegments(
   demographicFields: DemographicFieldConfig[],
-  responses: Response[]
+  responses: Response[],
+  options: { includeTotalAverage?: boolean; totalLabel?: string } = {}
 ): ComparisonSegment[] {
-  const segments: ComparisonSegment[] = [
-    { type: "total", key: "total", groupLabel: "전체", label: "평균" },
-  ];
+  const segments: ComparisonSegment[] = [];
+
+  if (options.includeTotalAverage !== false) {
+    segments.push({
+      type: "total",
+      key: "total",
+      groupLabel: "전체",
+      label: options.totalLabel ?? "평균",
+    });
+  }
 
   for (const field of demographicFields.slice(0, 2)) {
     for (const option of field.options) {
@@ -105,6 +113,16 @@ export function buildScoreCompareDashboardSegments(
   }
 
   return segments;
+}
+
+export function buildScoreCompareDashboardSegments(
+  demographicFields: DemographicFieldConfig[],
+  responses: Response[]
+): ComparisonSegment[] {
+  return buildDemographicDashboardSegments(demographicFields, responses, {
+    includeTotalAverage: true,
+    totalLabel: "평균",
+  });
 }
 
 function buildScoreCompareItems(

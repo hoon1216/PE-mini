@@ -300,8 +300,26 @@ export interface ChoiceSectionStats {
   groupedByRank1: boolean;
   rankingQuestionTitle: string | null;
   groups: ChoiceGroupStats[];
+  dashboardStats: ChoiceDashboardStats | null;
   ageGroups: AgeGroup[];
   demographicFields: DemographicFieldConfig[];
+}
+
+export interface ChoiceSegmentCell {
+  count: number;
+  percent: number;
+}
+
+export interface ChoiceDashboardItemStats {
+  itemId: string;
+  category: string;
+  option: string;
+  bySegment: Record<string, ChoiceSegmentCell | null>;
+}
+
+export interface ChoiceDashboardStats {
+  segments: ComparisonSegment[];
+  items: ChoiceDashboardItemStats[];
 }
 
 export type ComparisonSegment =

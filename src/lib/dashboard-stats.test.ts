@@ -192,12 +192,19 @@ describe("computeDashboardStats", () => {
 
     expect(choiceTable?.type).toBe("choice");
     if (choiceTable?.type === "choice") {
-      expect(choiceTable.data.groups[0].options).toEqual([
-        { option: "빨강", count: 1, percent: 50 },
-        { option: "파랑", count: 1, percent: 50 },
-      ]);
+      expect(choiceTable.data.dashboardStats).not.toBeNull();
+      const redItem = choiceTable.data.dashboardStats?.items.find(
+        (item) => item.option === "빨강"
+      );
+      const blueItem = choiceTable.data.dashboardStats?.items.find(
+        (item) => item.option === "파랑"
+      );
+      expect(redItem?.bySegment["gender-male"]).toEqual({ count: 1, percent: 100 });
+      expect(blueItem?.bySegment["gender-female"]).toEqual({ count: 1, percent: 100 });
       expect(
-        choiceTable.data.groups[0].options.some((row) => row.option === "노랑")
+        choiceTable.data.dashboardStats?.segments.some(
+          (segment) => segment.groupLabel === "전체"
+        )
       ).toBe(false);
     }
   });

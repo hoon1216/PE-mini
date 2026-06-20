@@ -38,6 +38,9 @@ export function dashboardTableTitle(entry: DashboardTableEntry): string {
       return table.data.sectionTitle || sectionTitle;
     }
     case "choice":
+      if (table.data.dashboardStats) {
+        return table.data.sectionTitle || sectionTitle;
+      }
       return table.data.questionTitle;
     case "combined-reason":
       return table.data.tableLabel;

@@ -23,7 +23,7 @@ import {
   dashboardTableTitle,
   type DashboardTableEntry,
 } from "@/lib/dashboard-layout";
-import { TextReasonViewer } from "@/components/admin/text-reason-viewer";
+import { formatChoiceSegmentCell } from "@/lib/choice-dashboard-stats";
 import type { ScoreCompareScoreStats } from "@/lib/types";
 
 const thClass =
@@ -50,14 +50,24 @@ function groupSegmentHeaderSpans(segments: ComparisonSegment[]) {
   return groups;
 }
 
-function ScoreCompareScoreTable({
+function DemographicSegmentTable<T>({
   sectionTitle,
-  scoreStats,
+  segments,
+  items,
+  getValueLabel,
+  formatCell,
 }: {
   sectionTitle: string;
-  scoreStats: ScoreCompareScoreStats;
+  segments: ComparisonSegment[];
+  items: Array<{
+    itemId: string;
+    category: string;
+    valueLabel: string;
+    bySegment: Record<string, T | null | undefined>;
+  }>;
+  getValueLabel: (item: { valueLabel: string }) => string;
+  formatCell: (value: T | null | undefined) => string;
 }) {
-  const { segments, items } = scoreStats;
   const segmentGroups = groupSegmentHeaderSpans(segments);
   const categoryRowSpans = getCategoryRowSpans(
     items.map((item) => ({ category: item.category }))
@@ -109,10 +119,10 @@ function ScoreCompareScoreTable({
                   {item.category}
                 </td>
               )}
-              <td className={tdClass}>{item.combination}</td>
+              <td className={tdClass}>{getValueLabel(item)}</td>
               {segments.map((segment) => (
                 <td key={`${item.itemId}-${segment.key}`} className={tdClass}>
-                  {formatNum(item.bySegment[segment.key])}
+                  {formatCell(item.bySegment[segment.key])}
                 </td>
               ))}
             </tr>
@@ -120,6 +130,29 @@ function ScoreCompareScoreTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ScoreCompareScoreTable({
+  sectionTitle,
+  scoreStats,
+}: {
+  sectionTitle: string;
+  scoreStats: ScoreCompareScoreStats;
+}) {
+  return (
+    <DemographicSegmentTable
+      sectionTitle={sectionTitle}
+      segments={scoreStats.segments}
+      items={scoreStats.items.map((item) => ({
+        itemId: item.itemId,
+        category: item.category,
+        valueLabel: item.combination,
+        bySegment: item.bySegment,
+      }))}
+      getValueLabel={(item) => item.valueLabel}
+      formatCell={formatNum}
+    />
   );
 }
 
@@ -680,6 +713,24 @@ export function ChoiceSectionTable({
   tableLabel?: string;
 }) {
   const headerLabel = tableLabel ?? section.questionTitle;
+
+  if (section.dashboardStats) {
+    return (
+      <DemographicSegmentTable
+        sectionTitle={headerLabel}
+        segments={section.dashboardStats.segments}
+        items={section.dashboardStats.items.map((item) => ({
+          itemId: item.itemId,
+          category: item.category,
+          valueLabel: item.option,
+          bySegment: item.bySegment,
+        }))}
+        getValueLabel={(item) => item.valueLabel}
+        formatCell={formatChoiceSegmentCell}
+      />
+    );
+  }
+
   const hasOptions = section.groups.some((group) => group.options.length > 0);
 
   if (!hasOptions) {
@@ -734,37 +785,7 @@ export function ChoiceSectionTable({
     );
   }
 
-  const options = section.groups[0]?.options ?? [];
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[320px] border-collapse border border-slate-300 text-sm">
-        <thead>
-          <tr>
-            <th colSpan={3} className={thClass}>
-              {headerLabel}
-            </th>
-          </tr>
-          <tr>
-            <th className={thClass}>선택지</th>
-            <th className={thClass}>선택 수</th>
-            <th className={thClass}>%</th>
-          </tr>
-        </thead>
-        <tbody>
-          {options.map((row) => (
-            <tr key={row.option}>
-              <td className={tdClass}>{row.option}</td>
-              <td className={tdClass}>{row.count}</td>
-              <td className={tdClass}>
-                {row.percent}% ({row.count})
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return null;
 }
 
 export function TextSectionTable({

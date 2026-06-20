@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { formatChoiceSegmentCell } from "./choice-dashboard-stats";
 import { demographicKey, scoreCustomFieldKey } from "./demographic-utils";
 import {
   textDemographicHeaderRow,
@@ -389,6 +390,46 @@ function writeChoiceTable(
 ) {
   const section = table.data;
   writer.addTitle(section.questionTitle);
+
+  if (section.dashboardStats) {
+    const { segments, items } = section.dashboardStats;
+    writer.addRows([
+      [
+        "구분",
+        "디자인 안",
+        ...segments.map((segment) => `${segment.groupLabel} ${segment.label}`),
+      ],
+    ]);
+
+    const categorySpans: (number | null)[] = [];
+    let index = 0;
+    while (index < items.length) {
+      const category = items[index].category;
+      let span = 1;
+      while (
+        index + span < items.length &&
+        items[index + span].category === category
+      ) {
+        span += 1;
+      }
+      categorySpans[index] = span;
+      index += span;
+    }
+
+    items.forEach((item, itemIndex) => {
+      writer.addRows([
+        [
+          categorySpans[itemIndex] !== null ? item.category : "",
+          item.option,
+          ...segments.map((segment) =>
+            formatChoiceSegmentCell(item.bySegment[segment.key])
+          ),
+        ],
+      ]);
+    });
+    writer.addBlank(2);
+    return;
+  }
 
   const hasOptions = section.groups.some((group) => group.options.length > 0);
   if (!hasOptions) {
