@@ -10,10 +10,14 @@ import type {
   Answer,
   ChoiceQuestionConfig,
   CombinedReasonBlockStats,
+  CombinedReasonSectionStats,
+  DemographicFieldConfig,
   Question,
   Response,
   ScoreQuestionConfig,
+  Section,
   TextReasonEntry,
+  AgeGroup,
 } from "./types";
 
 function extractReasonFromQuestionAnswer(
@@ -65,20 +69,65 @@ export function buildCombinedReasonEntries(
   return entries;
 }
 
-function combinedReasonBlockTitle(question: Question): string {
+function combinedReasonDisplayTitles(question: Question): {
+  tableLabel: string;
+  viewerTitle: string;
+} {
+  if (question.type === "choice") {
+    const title = question.title.trim();
+    const genericTitles = ["객관식 문항", "안 선택 문항"];
+    if (title && !genericTitles.includes(title)) {
+      const label = title.includes("이유")
+        ? title
+        : `${title} — ${defaultReasonLabel(question)}`;
+      return { tableLabel: label, viewerTitle: label };
+    }
+    return { tableLabel: "이유 기술 문항", viewerTitle: "이유 기술 문항" };
+  }
+
   const label = defaultReasonLabel(question);
 
   if (question.type === "score") {
     const config = question.config as ScoreQuestionConfig;
-    return `${config.category} · ${config.combination} — ${label}`;
+    const viewerTitle = `${config.category} · ${config.combination} — ${label}`;
+    return { tableLabel: viewerTitle, viewerTitle };
   }
 
   const title = question.title.trim();
-  const genericTitles = ["객관식 문항", "순위 문항", "주관식 문항"];
+  const genericTitles = ["순위 문항", "주관식 문항"];
   const displayTitle =
     title && !genericTitles.includes(title) ? title : label.replace(" 이유", "");
 
-  return `${displayTitle} — ${label}`;
+  const viewerTitle = `${displayTitle} — ${label}`;
+  return { tableLabel: viewerTitle, viewerTitle };
+}
+
+function combinedReasonBlockTitle(question: Question): string {
+  return combinedReasonDisplayTitles(question).viewerTitle;
+}
+
+export function buildCombinedReasonSectionStats(
+  section: Section,
+  question: Question,
+  responses: Response[],
+  answers: Answer[],
+  ageGroups: AgeGroup[],
+  demographicFields: DemographicFieldConfig[]
+): CombinedReasonSectionStats | null {
+  const entries = buildCombinedReasonEntries(question, responses, answers);
+  if (entries.length === 0) return null;
+
+  const { tableLabel, viewerTitle } = combinedReasonDisplayTitles(question);
+
+  return {
+    sectionId: section.id,
+    questionId: question.id,
+    tableLabel,
+    viewerTitle,
+    entries,
+    demographicFields,
+    ageGroups,
+  };
 }
 
 export function buildCombinedReasonBlock(
@@ -103,4 +152,28 @@ export function buildCombinedReasonBlocks(
   return questions
     .map((question) => buildCombinedReasonBlock(question, responses, answers))
     .filter((block): block is CombinedReasonBlockStats => block !== null);
+}
+
+export function buildCombinedReasonSections(
+  section: Section,
+  questions: Question[],
+  responses: Response[],
+  answers: Answer[],
+  ageGroups: AgeGroup[],
+  demographicFields: DemographicFieldConfig[]
+): CombinedReasonSectionStats[] {
+  return questions
+    .map((question) =>
+      buildCombinedReasonSectionStats(
+        section,
+        question,
+        responses,
+        answers,
+        ageGroups,
+        demographicFields
+      )
+    )
+    .filter(
+      (entry): entry is CombinedReasonSectionStats => entry !== null
+    );
 }

@@ -19,6 +19,8 @@ export function dashboardTableKey(
       return `${sectionId}-ranking-${table.data.questionId}`;
     case "choice":
       return `${sectionId}-choice-${table.data.questionId}`;
+    case "combined-reason":
+      return `${sectionId}-combined-reason-${table.data.questionId}`;
     default:
       return `${sectionId}-${table.type}`;
   }
@@ -37,6 +39,8 @@ export function dashboardTableTitle(entry: DashboardTableEntry): string {
     }
     case "choice":
       return table.data.questionTitle;
+    case "combined-reason":
+      return table.data.tableLabel;
     case "score":
     case "text":
     case "score-compare":

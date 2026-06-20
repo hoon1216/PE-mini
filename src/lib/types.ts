@@ -250,6 +250,16 @@ export interface CombinedReasonBlockStats {
   entries: TextReasonEntry[];
 }
 
+export interface CombinedReasonSectionStats {
+  sectionId: string;
+  questionId: string;
+  tableLabel: string;
+  viewerTitle: string;
+  entries: TextReasonEntry[];
+  demographicFields: DemographicFieldConfig[];
+  ageGroups: AgeGroup[];
+}
+
 export interface TextDemographicItemStats {
   questionId: string;
   questionTitle: string;
@@ -291,7 +301,6 @@ export interface ChoiceSectionStats {
   groups: ChoiceGroupStats[];
   ageGroups: AgeGroup[];
   demographicFields: DemographicFieldConfig[];
-  combinedReasonBlocks: CombinedReasonBlockStats[];
 }
 
 export type ComparisonSegment =
@@ -361,7 +370,7 @@ export interface ChoiceComparisonSectionStats {
   reasonGroups: ChoiceComparisonReasonGroup[];
   demographicFields: DemographicFieldConfig[];
   ageGroups: AgeGroup[];
-  combinedReasonBlocks: CombinedReasonBlockStats[];
+  combinedReasonSections: CombinedReasonSectionStats[];
 }
 
 export interface ScoreCompareItemStats {
@@ -408,6 +417,7 @@ export type DashboardSectionTable =
   | { type: "ranking"; data: RankingSectionStats }
   | { type: "text"; data: TextSectionStats }
   | { type: "choice"; data: ChoiceSectionStats }
+  | { type: "combined-reason"; data: CombinedReasonSectionStats }
   | { type: "choice-comparison"; data: ChoiceComparisonSectionStats };
 
 export interface DashboardSectionGroup {

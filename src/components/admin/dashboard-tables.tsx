@@ -1,6 +1,7 @@
 import type {
   AgeGroup,
   CombinedReasonBlockStats,
+  CombinedReasonSectionStats,
   DashboardStats,
   DemographicFieldConfig,
   DemographicStats,
@@ -288,6 +289,50 @@ function CombinedReasonBlocks({
           entries={block.entries}
           demographicFields={demographicFields}
           ageGroups={ageGroups}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function CombinedReasonSectionTable({
+  section,
+  tableLabel,
+}: {
+  section: CombinedReasonSectionStats;
+  tableLabel?: string;
+}) {
+  const headerLabel = tableLabel ?? section.tableLabel;
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm font-medium text-muted">{headerLabel}</p>
+      <TextReasonViewer
+        title={section.viewerTitle}
+        entries={section.entries}
+        demographicFields={section.demographicFields}
+        ageGroups={section.ageGroups}
+      />
+    </div>
+  );
+}
+
+function CombinedReasonSections({
+  sections,
+}: {
+  sections: CombinedReasonSectionStats[];
+}) {
+  const visibleSections = sections.filter(
+    (section) => section.entries.length > 0
+  );
+  if (visibleSections.length === 0) return null;
+
+  return (
+    <div className="space-y-5">
+      {visibleSections.map((section) => (
+        <CombinedReasonSectionTable
+          key={section.questionId}
+          section={section}
         />
       ))}
     </div>
@@ -689,8 +734,8 @@ export function ChoiceComparisonSectionTable({
               (section.reasonDemographic.entriesByRank1[rank1Name] ?? [])
                 .length > 0
           );
-          const hasCombinedReasons = section.combinedReasonBlocks.some(
-            (block) => block.entries.length > 0
+          const hasCombinedReasons = section.combinedReasonSections.some(
+            (reasonSection) => reasonSection.entries.length > 0
           );
 
           if (!hasTextReasons && !hasCombinedReasons) {
@@ -734,10 +779,8 @@ export function ChoiceComparisonSectionTable({
                   })}
                 </>
               )}
-              <CombinedReasonBlocks
-                blocks={section.combinedReasonBlocks}
-                demographicFields={section.demographicFields}
-                ageGroups={section.ageGroups}
+              <CombinedReasonSections
+                sections={section.combinedReasonSections}
               />
             </>
           );
@@ -759,36 +802,17 @@ export function ChoiceSectionTable({
   const hasOptions = section.groups.some((group) => group.options.length > 0);
 
   if (!hasOptions) {
-    const hasReasons = section.combinedReasonBlocks.some(
-      (block) => block.entries.length > 0
-    );
-
-    if (!hasReasons) {
-      return (
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-muted">{headerLabel}</p>
-          <p className="text-sm text-muted">선택된 답변이 없습니다.</p>
-        </div>
-      );
-    }
-
     return (
-      <div className="space-y-6">
+      <div className="space-y-2">
         <p className="text-sm font-medium text-muted">{headerLabel}</p>
         <p className="text-sm text-muted">선택된 답변이 없습니다.</p>
-        <CombinedReasonBlocks
-          blocks={section.combinedReasonBlocks}
-          demographicFields={section.demographicFields}
-          ageGroups={section.ageGroups}
-        />
       </div>
     );
   }
 
   if (section.groupedByRank1) {
     return (
-      <div className="space-y-6">
-        <div className="overflow-x-auto">
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] border-collapse border border-slate-300 text-sm">
           <thead>
             <tr>
@@ -825,12 +849,6 @@ export function ChoiceSectionTable({
             )}
           </tbody>
         </table>
-        </div>
-        <CombinedReasonBlocks
-          blocks={section.combinedReasonBlocks}
-          demographicFields={section.demographicFields}
-          ageGroups={section.ageGroups}
-        />
       </div>
     );
   }
@@ -838,8 +856,7 @@ export function ChoiceSectionTable({
   const options = section.groups[0]?.options ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="overflow-x-auto">
+    <div className="overflow-x-auto">
       <table className="w-full min-w-[320px] border-collapse border border-slate-300 text-sm">
         <thead>
           <tr>
@@ -865,12 +882,6 @@ export function ChoiceSectionTable({
           ))}
         </tbody>
       </table>
-      </div>
-      <CombinedReasonBlocks
-        blocks={section.combinedReasonBlocks}
-        demographicFields={section.demographicFields}
-        ageGroups={section.ageGroups}
-      />
     </div>
   );
 }
@@ -1020,6 +1031,14 @@ function renderDashboardTable(entry: DashboardTableEntry) {
     case "choice":
       return (
         <ChoiceSectionTable
+          key={entry.key}
+          section={table.data}
+          tableLabel={tableLabel}
+        />
+      );
+    case "combined-reason":
+      return (
+        <CombinedReasonSectionTable
           key={entry.key}
           section={table.data}
           tableLabel={tableLabel}

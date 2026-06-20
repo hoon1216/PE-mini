@@ -36,7 +36,8 @@ import {
 import { buildTextDemographicItems } from "./text-demographic-stats";
 import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
 import { buildScoreCompareSectionStats } from "./score-compare-stats";
-import { buildCombinedReasonBlocks } from "./combined-reason-stats";
+import { buildCombinedReasonBlocks, buildCombinedReasonSectionStats } from "./combined-reason-stats";
+import { questionIncludesReason } from "./combined-reason-utils";
 import {
   findPrecedingRankingQuestion,
   isRankGroupedTextSection,
@@ -538,11 +539,6 @@ function buildChoiceSectionStats(
       ],
       demographicFields,
       ageGroups,
-      combinedReasonBlocks: buildCombinedReasonBlocks(
-        [question],
-        responses,
-        answers
-      ),
     };
   }
 
@@ -625,11 +621,6 @@ function buildChoiceSectionStats(
     groups,
     demographicFields,
     ageGroups,
-    combinedReasonBlocks: buildCombinedReasonBlocks(
-      [question],
-      responses,
-      answers
-    ),
   };
 }
 
@@ -751,6 +742,22 @@ function buildSectionTables(
             survey.demographicFields
           ),
         });
+        if (questionIncludesReason(question)) {
+          const reasonStats = buildCombinedReasonSectionStats(
+            section,
+            question,
+            responses,
+            answers,
+            ageGroups,
+            survey.demographicFields
+          );
+          if (reasonStats) {
+            tables.push({
+              type: "combined-reason",
+              data: reasonStats,
+            });
+          }
+        }
       }
       index += 1;
       continue;

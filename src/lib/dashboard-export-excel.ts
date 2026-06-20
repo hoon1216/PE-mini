@@ -377,6 +377,27 @@ function writeChoiceComparisonTable(
       ),
     ]);
   }
+
+  for (const reasonSection of section.combinedReasonSections) {
+    writer.addTitle(reasonSection.tableLabel);
+    for (const entry of reasonSection.entries) {
+      writer.addRows([[entry.reason]]);
+    }
+    writer.addBlank();
+  }
+
+  writer.addBlank(2);
+}
+
+function writeCombinedReasonTable(
+  writer: SheetWriter,
+  table: Extract<DashboardSectionTable, { type: "combined-reason" }>
+) {
+  const section = table.data;
+  writer.addTitle(section.tableLabel);
+  for (const entry of section.entries) {
+    writer.addRows([[entry.reason]]);
+  }
   writer.addBlank(2);
 }
 
@@ -450,6 +471,9 @@ export async function buildDashboardExcelBuffer(
         writeChoiceComparisonTable(writer, table);
       }
       if (table.type === "choice") writeChoiceTable(writer, table);
+      if (table.type === "combined-reason") {
+        writeCombinedReasonTable(writer, table);
+      }
     }
   }
 

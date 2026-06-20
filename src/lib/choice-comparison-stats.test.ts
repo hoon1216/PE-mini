@@ -299,10 +299,11 @@ describe("choice-comparison-stats", () => {
       answers
     );
 
-    expect(stats?.combinedReasonBlocks).toHaveLength(1);
-    expect(stats?.combinedReasonBlocks[0].entries[0].reason).toBe(
+    expect(stats?.combinedReasonSections).toHaveLength(1);
+    expect(stats?.combinedReasonSections[0].entries[0].reason).toBe(
       "연결된 선택 이유"
     );
+    expect(stats?.combinedReasonSections[0].tableLabel).toBe("이유 기술 문항");
     expect(
       stats?.reasonDemographic.entriesByRank1["전체"][0].reason
     ).toBe("독립 이유 기술 답변");

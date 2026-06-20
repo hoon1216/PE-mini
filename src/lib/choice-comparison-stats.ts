@@ -8,7 +8,7 @@ import {
   mergeTextDemographicItems,
   mergeTextEntriesByRank1,
 } from "./text-demographic-stats";
-import { buildCombinedReasonBlocks } from "./combined-reason-stats";
+import { buildCombinedReasonSections } from "./combined-reason-stats";
 import { questionIncludesReason } from "./combined-reason-utils";
 import type {
   Answer,
@@ -359,10 +359,13 @@ export function buildChoiceComparisonSectionStats(
   const combinedReasonQuestions = section.questions.filter(
     (question) => question.type !== "text" && questionIncludesReason(question)
   );
-  const combinedReasonBlocks = buildCombinedReasonBlocks(
+  const combinedReasonSections = buildCombinedReasonSections(
+    section,
     combinedReasonQuestions,
     responses,
-    answers
+    answers,
+    reasonAgeGroups,
+    survey.demographicFields
   );
 
   return {
@@ -381,7 +384,7 @@ export function buildChoiceComparisonSectionStats(
     reasonGroups,
     demographicFields: survey.demographicFields,
     ageGroups: reasonAgeGroups,
-    combinedReasonBlocks,
+    combinedReasonSections,
   };
 }
 
