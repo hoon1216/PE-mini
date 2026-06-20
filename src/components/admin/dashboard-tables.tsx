@@ -209,19 +209,15 @@ function ChoiceDashboardTable({
                   )}
                 </>
               ) : (
-                <>
-                  {itemLabelRowSpans[index] !== null && (
-                    <td
-                      rowSpan={itemLabelRowSpans[index]!}
-                      className={`${tdClass} align-middle font-medium`}
-                    >
-                      {item.itemLabel}
-                    </td>
-                  )}
-                  {itemLabelRowSpans[index] !== null && (
-                    <td rowSpan={itemLabelRowSpans[index]!} className={tdClass} />
-                  )}
-                </>
+                itemLabelRowSpans[index] !== null && (
+                  <td
+                    colSpan={2}
+                    rowSpan={itemLabelRowSpans[index]!}
+                    className={`${tdClass} align-middle font-medium`}
+                  >
+                    {item.itemLabel}
+                  </td>
+                )
               )}
               <td className={`${tdClass} text-left`}>{item.option}</td>
               {segments.map((segment) => (

@@ -72,17 +72,45 @@ describe("choice-dashboard-stats", () => {
       sortOrder: 0,
     };
 
-    const stats = buildChoiceDashboardStats(
-      [question],
-      [],
-      [],
-      []
-    );
+    const stats = buildChoiceDashboardStats([question], [], [], []);
 
     expect(stats.items[0]).toMatchObject({
       category: null,
       itemLabel: "선호하는 안 선택",
       option: "선택지 A",
     });
+  });
+
+  it("excludes questions whose category is 없음", () => {
+    const hidden: Question = {
+      id: "q-hidden",
+      sectionId: "section-1",
+      title: "숨김 문항",
+      description: null,
+      type: "choice",
+      config: {
+        category: "없음",
+        options: ["선택지 A"],
+        selectionMode: "single",
+      },
+      sortOrder: 0,
+    };
+    const visible: Question = {
+      id: "q-visible",
+      sectionId: "section-1",
+      title: "표시 문항",
+      description: null,
+      type: "choice",
+      config: {
+        options: ["선택지 B"],
+        selectionMode: "single",
+      },
+      sortOrder: 1,
+    };
+
+    const stats = buildChoiceDashboardStats([hidden, visible], [], [], []);
+
+    expect(stats.items).toHaveLength(1);
+    expect(stats.items[0].option).toBe("선택지 B");
   });
 });

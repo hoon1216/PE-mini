@@ -82,6 +82,10 @@ function buildChoiceSegmentCell(
   };
 }
 
+export function isHiddenChoiceCategory(category?: string | null): boolean {
+  return category?.trim() === "없음";
+}
+
 function choiceDashboardCategory(
   question: Question
 ): { category: string | null; itemLabel: string } {
@@ -102,34 +106,41 @@ function buildChoiceDashboardItems(
   answers: Answer[],
   segments: ChoiceDashboardStats["segments"]
 ): ChoiceDashboardItemStats[] {
-  return choiceQuestions.flatMap((question) => {
-    const config = question.config as ChoiceQuestionConfig;
-    const { category, itemLabel } = choiceDashboardCategory(question);
+  return choiceQuestions
+    .filter(
+      (question) =>
+        !isHiddenChoiceCategory(
+          (question.config as ChoiceQuestionConfig).category
+        )
+    )
+    .flatMap((question) => {
+      const config = question.config as ChoiceQuestionConfig;
+      const { category, itemLabel } = choiceDashboardCategory(question);
 
-    return config.options.map((option) => ({
-      itemId: `${question.id}::${option}`,
-      category,
-      itemLabel,
-      option,
-      bySegment: Object.fromEntries(
-        segments.map((segment) => {
-          const filtered = responses.filter((response) =>
-            segmentMatchesResponse(response, segment)
-          );
-          return [
-            segment.key,
-            buildChoiceSegmentCell(
-              config,
-              filtered,
-              answers,
-              question.id,
-              option
-            ),
-          ];
-        })
-      ),
-    }));
-  });
+      return config.options.map((option) => ({
+        itemId: `${question.id}::${option}`,
+        category,
+        itemLabel,
+        option,
+        bySegment: Object.fromEntries(
+          segments.map((segment) => {
+            const filtered = responses.filter((response) =>
+              segmentMatchesResponse(response, segment)
+            );
+            return [
+              segment.key,
+              buildChoiceSegmentCell(
+                config,
+                filtered,
+                answers,
+                question.id,
+                option
+              ),
+            ];
+          })
+        ),
+      }));
+    });
 }
 
 export function buildChoiceDashboardStats(

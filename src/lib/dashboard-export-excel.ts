@@ -446,20 +446,18 @@ function writeChoiceTable(
     }
 
     items.forEach((item, itemIndex) => {
+      const labelCells = item.category
+        ? [
+            categorySpans[itemIndex] !== null ? item.category ?? "" : "",
+            itemLabelSpans[itemIndex] !== null ? item.itemLabel : "",
+          ]
+        : itemLabelSpans[itemIndex] !== null
+          ? [item.itemLabel, ""]
+          : ["", ""];
+
       writer.addRows([
         [
-          categorySpans[itemIndex] !== null
-            ? item.category ?? ""
-            : itemLabelSpans[itemIndex] !== null
-              ? item.itemLabel
-              : "",
-          item.category
-            ? itemLabelSpans[itemIndex] !== null
-              ? item.itemLabel
-              : ""
-            : itemLabelSpans[itemIndex] !== null
-              ? ""
-              : "",
+          ...labelCells,
           item.option,
           ...segments.map((segment) =>
             formatChoiceSegmentCell(item.bySegment[segment.key])
