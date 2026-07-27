@@ -6,6 +6,7 @@ import type {
   RankingQuestionConfig,
   ScoreQuestionConfig,
   ScoreCompareQuestionConfig,
+  AttributeEvalQuestionConfig,
   TextQuestionConfig,
   ChoiceQuestionConfig,
 } from "./types";
@@ -17,6 +18,7 @@ import {
   defaultRankingQuestionConfig,
   defaultScoreQuestionConfig,
   defaultScoreCompareQuestionConfig,
+  defaultAttributeEvalQuestionConfig,
   defaultTextQuestionConfig,
 } from "./types";
 
@@ -37,6 +39,7 @@ export function normalizeQuestionType(type: string): QuestionType {
     type === "score" ||
     type === "ranking" ||
     type === "score-compare" ||
+    type === "attribute-eval" ||
     type === "text"
   ) {
     return type;
@@ -121,6 +124,18 @@ export function normalizeQuestionConfig(
       category: raw.category ?? defaults.category,
       combinations,
       ...reasonFields,
+    };
+  }
+
+  if (type === "attribute-eval") {
+    const raw = (config ?? {}) as Partial<AttributeEvalQuestionConfig>;
+    const defaults = defaultAttributeEvalQuestionConfig();
+    return {
+      designConcept: raw.designConcept?.trim() || defaults.designConcept,
+      attributes: raw.attributes?.length
+        ? raw.attributes
+        : defaults.attributes,
+      ...normalizeCombinedReasonFields(raw),
     };
   }
 

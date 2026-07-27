@@ -30,6 +30,7 @@ import type {
   RankingQuestionConfig,
   ScoreQuestionConfig,
   ScoreCompareQuestionConfig,
+  AttributeEvalQuestionConfig,
   Section,
   TextQuestionConfig,
   ChoiceQuestionConfig,
@@ -128,6 +129,10 @@ export function SectionQuestions({
   const firstScoreCompareQuestionIndex = segments.findIndex(
     (segment) =>
       segment.kind === "question" && segment.question.type === "score-compare"
+  );
+  const firstAttributeEvalQuestionIndex = segments.findIndex(
+    (segment) =>
+      segment.kind === "question" && segment.question.type === "attribute-eval"
   );
 
   return (
@@ -268,6 +273,63 @@ export function SectionQuestions({
                         {entry.reason.length}/{maxLength}
                       </p>
                     </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        if (question.type === "attribute-eval") {
+          const config = question.config as AttributeEvalQuestionConfig;
+          const entry = scoreCompares[question.id] ?? { scores: {}, reason: "" };
+          const showTypeLabel = index === firstAttributeEvalQuestionIndex;
+
+          return (
+            <div key={question.id} className="space-y-4">
+              {showTypeLabel && (
+                <p className="text-xs text-muted">
+                  5. 속성 평가형 ({SCORE_MIN}~{SCORE_MAX}점)
+                </p>
+              )}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-3 text-sm font-semibold">
+                  {config.designConcept}
+                </p>
+                <p className="mb-3 text-xs text-muted">
+                  각 속성을 {SCORE_MIN}~{SCORE_MAX}점으로 평가해주세요.
+                </p>
+                <div className="space-y-4">
+                  {config.attributes.map((attribute) => (
+                    <div
+                      key={`${question.id}-${attribute}`}
+                      className="rounded-lg border border-border bg-card p-3 space-y-3"
+                    >
+                      <p className="text-sm font-medium text-muted">
+                        {attribute}
+                      </p>
+                      <ScoreSlider
+                        value={Number(
+                          entry.scores[attribute] || DEFAULT_SCORE_VALUE
+                        )}
+                        isSet={!!entry.scores[attribute]}
+                        onChange={(score) =>
+                          onScoreCompareChange(question.id, {
+                            combination: attribute,
+                            combinationScore: String(score),
+                          })
+                        }
+                      />
+                    </div>
+                  ))}
+                  {questionIncludesReason(question) && (
+                    <CombinedReasonField
+                      question={question}
+                      value={entry.reason}
+                      onChange={(value) =>
+                        onScoreCompareChange(question.id, { reason: value })
+                      }
+                    />
                   )}
                 </div>
               </div>

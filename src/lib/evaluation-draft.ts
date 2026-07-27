@@ -27,6 +27,7 @@ import {
 } from "./ranking-utils";
 import {
   serializeScoreReasonAnswer,
+  validateAttributeEvalQuestion,
   validateScoreCompareQuestion,
 } from "./score-reason-utils";
 import type {
@@ -154,6 +155,7 @@ export function sectionHasQuestions(
     (q) =>
       q.type === "score" ||
       q.type === "score-compare" ||
+      q.type === "attribute-eval" ||
       q.type === "ranking" ||
       q.type === "text" ||
       q.type === "choice"
@@ -171,6 +173,13 @@ function validateQuestionAnswer(
 ): string | null {
   if (question.type === "score-compare") {
     return validateScoreCompareQuestion(
+      question,
+      getScoreCompareEntry(draft, question.id)
+    );
+  }
+
+  if (question.type === "attribute-eval") {
+    return validateAttributeEvalQuestion(
       question,
       getScoreCompareEntry(draft, question.id)
     );
@@ -345,6 +354,19 @@ export function buildSubmitPayload(
       } else if (question.type === "score-compare") {
         const entry = getScoreCompareEntry(draft, question.id);
         const validationError = validateScoreCompareQuestion(question, entry);
+        if (validationError) {
+          throw new Error(validationError);
+        }
+        answers.push({
+          questionId: question.id,
+          value: serializeScoreReasonAnswer(
+            entry.scores,
+            questionIncludesReason(question) ? entry.reason : ""
+          ),
+        });
+      } else if (question.type === "attribute-eval") {
+        const entry = getScoreCompareEntry(draft, question.id);
+        const validationError = validateAttributeEvalQuestion(question, entry);
         if (validationError) {
           throw new Error(validationError);
         }

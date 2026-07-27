@@ -12,11 +12,13 @@ import { validateDemographicValues } from "./demographic-field-utils";
 import { parseRankingAnswer } from "./demographic-utils";
 import {
   parseScoreReasonAnswer,
+  validateAttributeEvalQuestion,
   validateScoreCompareQuestion,
   validateUniqueScoreCompareScores,
 } from "./score-reason-utils";
 import type {
   AgeGroup,
+  AttributeEvalQuestionConfig,
   ChoiceQuestionConfig,
   Gender,
   Question,
@@ -118,6 +120,26 @@ function validateAnswerForQuestion(
     }
 
     return null;
+  }
+
+  if (question.type === "attribute-eval") {
+    const config = question.config as AttributeEvalQuestionConfig;
+    const parsed = parseScoreReasonAnswer(value, config.attributes);
+    if (!parsed) {
+      return "속성 평가 답변 형식이 올바르지 않습니다.";
+    }
+
+    const draftEntry = {
+      scores: Object.fromEntries(
+        Object.entries(parsed.scores).map(([attribute, score]) => [
+          attribute,
+          String(score),
+        ])
+      ),
+      reason: parsed.reason,
+    };
+
+    return validateAttributeEvalQuestion(question, draftEntry);
   }
 
   if (question.type === "ranking") {

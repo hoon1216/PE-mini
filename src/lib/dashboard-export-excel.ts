@@ -70,7 +70,14 @@ function writeDemographics(writer: SheetWriter, stats: DashboardStats) {
 
 function writeScoreTable(
   writer: SheetWriter,
-  table: Extract<DashboardSectionTable, { type: "score" }>
+  table: Extract<
+    DashboardSectionTable,
+    { type: "score" | "attribute-eval" }
+  >,
+  headers: { category: string; combination: string } = {
+    category: "구분",
+    combination: "디자인 안",
+  }
 ) {
   const section = table.data;
   const ageGroups = section.ageGroups;
@@ -90,8 +97,8 @@ function writeScoreTable(
   writer.addTitle(section.sectionTitle);
   writer.addRows([
     [
-      "구분",
-      "디자인 안",
+      headers.category,
+      headers.combination,
       "평균 점수",
       "평균 순위",
       ...customHeaders,
@@ -532,6 +539,12 @@ export async function buildDashboardExcelBuffer(
 
     for (const table of section.tables) {
       if (table.type === "score") writeScoreTable(writer, table);
+      if (table.type === "attribute-eval") {
+        writeScoreTable(writer, table, {
+          category: "디자인 컨셉안",
+          combination: "평가 속성",
+        });
+      }
       if (table.type === "score-compare") writeScoreCompareTable(writer, table);
       if (table.type === "ranking") writeRankingTable(writer, table);
       if (table.type === "text") writeTextTable(writer, table);

@@ -3,10 +3,11 @@ export type QuestionType =
   | "score"
   | "ranking"
   | "score-compare"
+  | "attribute-eval"
   | "text";
 
 export interface CombinedReasonFields {
-  /** 결합된 이유 기술형(5번) 입력 여부 */
+  /** 결합된 이유 기술형(6번) 입력 여부 */
   includeReason?: boolean;
   reasonPlaceholder?: string;
   reasonMaxLength?: number;
@@ -28,6 +29,13 @@ export interface ScoreQuestionConfig extends CombinedReasonFields {
 export interface ScoreCompareQuestionConfig extends CombinedReasonFields {
   category: string;
   combinations: string[];
+}
+
+export interface AttributeEvalQuestionConfig extends CombinedReasonFields {
+  /** 디자인 안 / 디자인 컨셉명 */
+  designConcept: string;
+  /** 7점 척도로 평가할 속성 목록 */
+  attributes: string[];
 }
 
 export interface RankingQuestionConfig extends CombinedReasonFields {
@@ -56,6 +64,7 @@ export interface ChoiceQuestionConfig extends CombinedReasonFields {
 export type QuestionConfig =
   | ScoreQuestionConfig
   | ScoreCompareQuestionConfig
+  | AttributeEvalQuestionConfig
   | RankingQuestionConfig
   | TextQuestionConfig
   | ChoiceQuestionConfig;
@@ -65,6 +74,7 @@ export const QUESTION_TYPE_ORDER: QuestionType[] = [
   "score",
   "ranking",
   "score-compare",
+  "attribute-eval",
   "text",
 ];
 
@@ -73,7 +83,8 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   score: "2. 안별 점수부과형",
   ranking: "3. 순위 선정형",
   "score-compare": "4. 안 점수 비교형",
-  text: "5. 이유 기술형",
+  "attribute-eval": "5. 속성 평가형",
+  text: "6. 이유 기술형",
 };
 
 export const SCORE_MIN = 1;
@@ -436,6 +447,7 @@ export interface ScoreCompareSectionStats {
 export type DashboardSectionTable =
   | { type: "score"; data: ScoreSectionStats }
   | { type: "score-compare"; data: ScoreCompareSectionStats }
+  | { type: "attribute-eval"; data: ScoreSectionStats }
   | { type: "ranking"; data: RankingSectionStats }
   | { type: "text"; data: TextSectionStats }
   | { type: "choice"; data: ChoiceSectionStats }
@@ -512,6 +524,16 @@ export function defaultScoreCompareQuestionConfig(): ScoreCompareQuestionConfig 
   };
 }
 
+export function defaultAttributeEvalQuestionConfig(): AttributeEvalQuestionConfig {
+  return {
+    designConcept: "디자인 컨셉",
+    attributes: ["속성 1", "속성 2", "속성 3"],
+    includeReason: false,
+    reasonPlaceholder: "속성 평가 이유를 입력해주세요",
+    reasonMaxLength: 500,
+  };
+}
+
 export function defaultScoreQuestionConfig(): ScoreQuestionConfig {
   return { category: "구분", combination: "조합 A" };
 }
@@ -536,6 +558,7 @@ export function configForQuestionType(type: QuestionType): QuestionConfig {
   if (type === "text") return defaultTextQuestionConfig();
   if (type === "choice") return defaultChoiceQuestionConfig();
   if (type === "score-compare") return defaultScoreCompareQuestionConfig();
+  if (type === "attribute-eval") return defaultAttributeEvalQuestionConfig();
   return defaultScoreQuestionConfig();
 }
 
@@ -544,6 +567,7 @@ export function defaultQuestionTitle(type: QuestionType): string {
   if (type === "text") return "이유 기술 문항";
   if (type === "choice") return "안 선택 문항";
   if (type === "score-compare") return "안 점수 비교 문항";
+  if (type === "attribute-eval") return "디자인 속성 평가 문항";
   return "점수 문항";
 }
 

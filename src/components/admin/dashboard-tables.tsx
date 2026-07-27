@@ -459,9 +459,13 @@ export function CombinedReasonSectionTable({
 export function ScoreSectionTable({
   section,
   tableLabel,
+  categoryHeader = "구분",
+  combinationHeader = "디자인 안",
 }: {
   section: ScoreSectionStats;
   tableLabel?: string;
+  categoryHeader?: string;
+  combinationHeader?: string;
 }) {
   const { ageGroups, customField } = section;
   const customColSpan = customField ? customField.options.length * 2 : 0;
@@ -482,10 +486,10 @@ export function ScoreSectionTable({
           </tr>
           <tr>
             <th rowSpan={3} className={thClass}>
-              구분
+              {categoryHeader}
             </th>
             <th rowSpan={3} className={thClass}>
-              디자인 안
+              {combinationHeader}
             </th>
             <th colSpan={2} className={thClass}>
               평균
@@ -994,6 +998,16 @@ function renderDashboardTable(entry: DashboardTableEntry) {
           key={entry.key}
           section={table.data}
           tableLabel={tableLabel}
+        />
+      );
+    case "attribute-eval":
+      return (
+        <ScoreSectionTable
+          key={entry.key}
+          section={table.data}
+          tableLabel={tableLabel}
+          categoryHeader="디자인 컨셉안"
+          combinationHeader="평가 속성"
         />
       );
     case "score-compare":

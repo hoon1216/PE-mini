@@ -20,6 +20,7 @@ import type {
   RankingQuestionConfig,
   ScoreQuestionConfig,
   ScoreCompareQuestionConfig,
+  AttributeEvalQuestionConfig,
   CombinedReasonFields,
   Section,
   SurveyDetail,
@@ -89,7 +90,7 @@ function ReasonCombineFields({
             onChange({ includeReason: e.target.checked })
           }
         />
-        5. 이유 기술형과 결합
+        6. 이유 기술형과 결합
       </label>
       {config.includeReason && (
         <div className="grid gap-3 md:grid-cols-2">
@@ -567,6 +568,125 @@ export function SurveyEditor({
                 ...config,
                 combinations: config.combinations.filter(
                   (_, index) => index !== comboIndex
+                ),
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function updateAttributeEvalQuestion(
+    sectionIndex: number,
+    questionIndex: number,
+    patch: Partial<AttributeEvalQuestionConfig>
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "attribute-eval") {
+              return question;
+            }
+            return {
+              ...question,
+              config: {
+                ...(question.config as AttributeEvalQuestionConfig),
+                ...patch,
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function updateAttributeEvalAttribute(
+    sectionIndex: number,
+    questionIndex: number,
+    attributeIndex: number,
+    value: string
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "attribute-eval") {
+              return question;
+            }
+            const config = question.config as AttributeEvalQuestionConfig;
+            return {
+              ...question,
+              config: {
+                ...config,
+                attributes: config.attributes.map((attribute, index) =>
+                  index === attributeIndex ? value : attribute
+                ),
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function addAttributeEvalAttribute(
+    sectionIndex: number,
+    questionIndex: number
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "attribute-eval") {
+              return question;
+            }
+            const config = question.config as AttributeEvalQuestionConfig;
+            return {
+              ...question,
+              config: {
+                ...config,
+                attributes: [
+                  ...config.attributes,
+                  `속성 ${config.attributes.length + 1}`,
+                ],
+              },
+            };
+          }),
+        };
+      })
+    );
+  }
+
+  function removeAttributeEvalAttribute(
+    sectionIndex: number,
+    questionIndex: number,
+    attributeIndex: number
+  ) {
+    setSections((prev) =>
+      prev.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.map((question, qIdx) => {
+            if (qIdx !== questionIndex || question.type !== "attribute-eval") {
+              return question;
+            }
+            const config = question.config as AttributeEvalQuestionConfig;
+            if (config.attributes.length <= 1) return question;
+            return {
+              ...question,
+              config: {
+                ...config,
+                attributes: config.attributes.filter(
+                  (_, index) => index !== attributeIndex
                 ),
               },
             };
@@ -1054,6 +1174,10 @@ export function SurveyEditor({
                 question.type === "score-compare"
                   ? (question.config as ScoreCompareQuestionConfig)
                   : null;
+              const attributeEvalConfig =
+                question.type === "attribute-eval"
+                  ? (question.config as AttributeEvalQuestionConfig)
+                  : null;
               const rankingConfig =
                 question.type === "ranking"
                   ? (question.config as RankingQuestionConfig)
@@ -1246,6 +1370,90 @@ export function SurveyEditor({
                         config={scoreCompareConfig}
                         onChange={(patch) =>
                           updateScoreCompareQuestion(
+                            sectionIndex,
+                            questionIndex,
+                            patch
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {attributeEvalConfig && (
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          디자인 안
+                        </label>
+                        <Input
+                          value={attributeEvalConfig.designConcept}
+                          onChange={(e) =>
+                            updateAttributeEvalQuestion(
+                              sectionIndex,
+                              questionIndex,
+                              { designConcept: e.target.value }
+                            )
+                          }
+                          placeholder="디자인 컨셉"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">속성별 평가</p>
+                        {attributeEvalConfig.attributes.map(
+                          (attribute, attributeIndex) => (
+                            <div
+                              key={`${questionIndex}-attr-${attributeIndex}`}
+                              className="flex gap-2"
+                            >
+                              <Input
+                                value={attribute}
+                                onChange={(e) =>
+                                  updateAttributeEvalAttribute(
+                                    sectionIndex,
+                                    questionIndex,
+                                    attributeIndex,
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="속성"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() =>
+                                  removeAttributeEvalAttribute(
+                                    sectionIndex,
+                                    questionIndex,
+                                    attributeIndex
+                                  )
+                                }
+                                disabled={
+                                  attributeEvalConfig.attributes.length <= 1
+                                }
+                              >
+                                삭제
+                              </Button>
+                            </div>
+                          )
+                        )}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="mt-1"
+                          onClick={() =>
+                            addAttributeEvalAttribute(
+                              sectionIndex,
+                              questionIndex
+                            )
+                          }
+                        >
+                          속성 추가
+                        </Button>
+                      </div>
+                      <ReasonCombineFields
+                        config={attributeEvalConfig}
+                        onChange={(patch) =>
+                          updateAttributeEvalQuestion(
                             sectionIndex,
                             questionIndex,
                             patch

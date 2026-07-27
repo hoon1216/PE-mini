@@ -122,6 +122,7 @@ export function getRequiredQuestionsForSurvey(
       if (
         question.type === "score" ||
         question.type === "score-compare" ||
+        question.type === "attribute-eval" ||
         question.type === "ranking" ||
         question.type === "choice"
       ) {

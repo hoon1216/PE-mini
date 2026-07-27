@@ -47,8 +47,8 @@ export function dashboardTableTitle(entry: DashboardTableEntry): string {
     case "combined-reason":
       return table.data.tableLabel;
     case "score":
-    case "text":
     case "score-compare":
+    case "attribute-eval":
     case "choice-comparison":
       return table.data.sectionTitle || sectionTitle;
     default:

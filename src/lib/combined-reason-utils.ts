@@ -204,6 +204,8 @@ export function defaultReasonLabel(question: Question): string {
       return "순위 선정 이유";
     case "score-compare":
       return "가장 높은 점수를 준 안에 대한 이유";
+    case "attribute-eval":
+      return "속성 평가 이유";
     default:
       return "이유";
   }

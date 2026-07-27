@@ -6,6 +6,7 @@ import {
 import { parseRankingAnswer } from "./demographic-utils";
 import { parseScoreReasonAnswer } from "./score-reason-utils";
 import type {
+  AttributeEvalQuestionConfig,
   ChoiceQuestionConfig,
   Question,
   ScoreCompareQuestionConfig,
@@ -38,6 +39,22 @@ export function formatAnswerValue(question: Question, value: string): string {
     return appendReason(scoreParts.join(" / "), parsed.reason);
   }
 
+  if (question.type === "attribute-eval") {
+    const config = question.config as AttributeEvalQuestionConfig;
+    const parsed = parseScoreReasonAnswer(value, config.attributes);
+    if (!parsed) return value;
+    const scoreParts = config.attributes
+      .map((attribute) => {
+        const score = parsed.scores[attribute];
+        return typeof score === "number" ? `${attribute}: ${score}점` : null;
+      })
+      .filter((part): part is string => part !== null);
+    return appendReason(
+      `${config.designConcept} (${scoreParts.join(" / ")})`,
+      parsed.reason
+    );
+  }
+
   if (question.type === "ranking") {
     const parsed = parseRankingAnswer(value);
     if (!parsed) return value;
@@ -63,6 +80,10 @@ export function questionDisplayLabel(question: Question): string {
   if (question.type === "score-compare") {
     const config = question.config as ScoreCompareQuestionConfig;
     return config.combinations.join(", ") || question.title;
+  }
+  if (question.type === "attribute-eval") {
+    const config = question.config as AttributeEvalQuestionConfig;
+    return config.designConcept || question.title;
   }
   if (question.type === "ranking") {
     return question.title !== "순위 문항" ? question.title : "순위 선정";

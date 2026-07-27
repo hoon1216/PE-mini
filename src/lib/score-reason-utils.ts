@@ -292,5 +292,45 @@ export function flattenScoreCompareQuestions(
   });
 }
 
+export function flattenAttributeEvalQuestions(
+  questions: Question[]
+): Array<{
+  id: string;
+  questionId: string;
+  category: string;
+  combination: string;
+  combinations: string[];
+}> {
+  return questions.flatMap((question) => {
+    const config = question.config as import("./types").AttributeEvalQuestionConfig;
+    return config.attributes.map((attribute) => ({
+      id: scoreReasonItemKey(question.id, attribute),
+      questionId: question.id,
+      category: config.designConcept,
+      combination: attribute,
+      combinations: config.attributes,
+    }));
+  });
+}
+
+export function validateAttributeEvalQuestion(
+  question: Question,
+  entry: ScoreReasonDraftLike | undefined
+): string | null {
+  const config = question.config as import("./types").AttributeEvalQuestionConfig;
+
+  for (const attribute of config.attributes) {
+    if (!entry?.scores[attribute] || !isValidScoreValue(entry.scores[attribute])) {
+      return "모든 속성의 점수를 선택해주세요.";
+    }
+  }
+
+  if (!questionIncludesReason(question)) {
+    return null;
+  }
+
+  return validateCombinedReasonText(entry?.reason, config);
+}
+
 /** @deprecated use flattenScoreCompareQuestions */
 export const flattenScoreReasonQuestions = flattenScoreCompareQuestions;

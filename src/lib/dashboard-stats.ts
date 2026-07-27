@@ -29,7 +29,7 @@ import {
   scoreCustomFieldKey,
 } from "./demographic-utils";
 import { buildTextDemographicItems } from "./text-demographic-stats";
-import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
+import { scoreFromAnswerValue, getScoreReasonCombinationScore, flattenScoreReasonQuestions, flattenAttributeEvalQuestions, parseScoreReasonItemKey } from "./score-reason-utils";
 import { buildScoreCompareSectionStats, buildScoreCompareCombinedReasonSectionStats } from "./score-compare-stats";
 import { buildCombinedReasonBlocks, buildCombinedReasonSectionStats } from "./combined-reason-stats";
 import { questionIncludesReason } from "./combined-reason-utils";
@@ -187,6 +187,9 @@ function buildScoreSectionStats(
   const scoreItems = scoreQuestions.flatMap((question) => {
     if (question.type === "score-compare") {
       return flattenScoreReasonQuestions([question]);
+    }
+    if (question.type === "attribute-eval") {
+      return flattenAttributeEvalQuestions([question]);
     }
 
     const config = question.config as ScoreQuestionConfig;
@@ -536,6 +539,42 @@ function buildSectionTables(
           answers,
           survey.demographicFields,
           ageGroups
+        ),
+      });
+      for (const batchQuestion of batch) {
+        pushCombinedReasonTable(
+          tables,
+          section,
+          batchQuestion,
+          responses,
+          answers,
+          ageGroups,
+          survey.demographicFields
+        );
+      }
+      index += batch.length;
+      continue;
+    }
+
+    if (question.type === "attribute-eval") {
+      const batch = [question];
+      while (
+        index + batch.length < questions.length &&
+        questions[index + batch.length].type === "attribute-eval"
+      ) {
+        batch.push(questions[index + batch.length]);
+      }
+
+      tables.push({
+        type: "attribute-eval",
+        data: buildScoreSectionStats(
+          section,
+          batch,
+          responses,
+          answers,
+          ageGroups,
+          survey.demographicFields[0] ?? null,
+          survey.demographicFields
         ),
       });
       for (const batchQuestion of batch) {
