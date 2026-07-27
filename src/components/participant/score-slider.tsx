@@ -51,7 +51,7 @@ export function ScoreSlider({
 
       <div className="relative px-1 py-2">
         <div
-          className="absolute left-4 right-4 top-[calc(50%+10px)] h-1 -translate-y-1/2 rounded-full"
+          className="absolute left-4 right-4 top-1/2 h-1 -translate-y-1/2 rounded-full"
           style={{ backgroundColor: active ? "#bfdbfe" : "#fecaca" }}
         />
         <div className="relative flex justify-between gap-0.5">
@@ -66,16 +66,10 @@ export function ScoreSlider({
                 disabled={disabled}
                 aria-label={`${score}점 ${SCORE_LABELS[score]}`}
                 aria-pressed={selected}
-                className={`relative z-10 flex w-9 flex-col items-center gap-0.5 sm:w-10 ${
+                className={`relative z-10 flex w-9 items-center justify-center sm:w-10 ${
                   disabled ? "cursor-not-allowed opacity-40" : ""
                 }`}
               >
-                <span
-                  className="whitespace-nowrap text-[9px] leading-tight text-muted sm:text-[10px]"
-                  aria-hidden
-                >
-                  {SCORE_LABELS[score]}
-                </span>
                 <span
                   className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white shadow-md transition-transform active:scale-95 sm:h-10 sm:w-10"
                   style={{
