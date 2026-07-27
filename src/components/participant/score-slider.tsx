@@ -49,12 +49,12 @@ export function ScoreSlider({
         <span>{SCORE_MAX}점</span>
       </div>
 
-      <div className="relative px-1 py-2">
+      <div className="relative w-full py-2">
         <div
-          className="absolute left-4 right-4 top-1/2 h-1 -translate-y-1/2 rounded-full"
+          className="absolute left-[7%] right-[7%] top-1/2 h-1 -translate-y-1/2 rounded-full"
           style={{ backgroundColor: active ? "#bfdbfe" : "#fecaca" }}
         />
-        <div className="relative flex justify-between gap-0.5">
+        <div className="relative grid w-full grid-cols-7 gap-1">
           {SCORE_VALUES.map((score) => {
             const selected = active && value === score;
             const disabled = disabledScores.includes(score);
@@ -66,12 +66,12 @@ export function ScoreSlider({
                 disabled={disabled}
                 aria-label={`${score}점 ${SCORE_LABELS[score]}`}
                 aria-pressed={selected}
-                className={`relative z-10 flex w-9 items-center justify-center sm:w-10 ${
+                className={`relative z-10 flex min-w-0 items-center justify-center ${
                   disabled ? "cursor-not-allowed opacity-40" : ""
                 }`}
               >
                 <span
-                  className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white shadow-md transition-transform active:scale-95 sm:h-10 sm:w-10"
+                  className="flex aspect-square w-full max-w-10 items-center justify-center rounded-full border-2 border-white shadow-md transition-transform active:scale-95"
                   style={{
                     backgroundColor: selected ? primary : secondary,
                     boxShadow: selected
