@@ -824,6 +824,41 @@ export function SurveyEditor({
     );
   }
 
+  function duplicateQuestion(sectionIndex: number) {
+    setSections((prev) =>
+      prev.map((section, index) => {
+        if (index !== sectionIndex || section.questions.length === 0) {
+          return section;
+        }
+
+        const source = section.questions[section.questions.length - 1];
+        const normalized = normalizeQuestion({
+          id: source.id ?? "draft",
+          sectionId: source.sectionId ?? "draft",
+          title: source.title,
+          description: source.description ?? null,
+          type: source.type as Question["type"],
+          config: source.config,
+          sortOrder: section.questions.length,
+        });
+
+        return {
+          ...section,
+          questions: [
+            ...section.questions,
+            {
+              title: normalized.title,
+              description: normalized.description,
+              type: normalized.type,
+              config: structuredClone(normalized.config),
+              sortOrder: section.questions.length,
+            },
+          ],
+        };
+      })
+    );
+  }
+
   function removeQuestion(sectionIndex: number, questionIndex: number) {
     setSections((prev) =>
       prev.map((section, sIdx) => {
@@ -1741,6 +1776,14 @@ export function SurveyEditor({
                 onClick={() => addQuestion(sectionIndex)}
               >
                 문항 추가
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => duplicateQuestion(sectionIndex)}
+                disabled={section.questions.length === 0}
+              >
+                문항 복사
               </Button>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
